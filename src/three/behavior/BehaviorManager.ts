@@ -18,18 +18,7 @@ interface AgentTask {
   targetPos: THREE.Vector3;
   targetRotation: number;
   behavior: AgentBehavior;
-  category: 'focus' | 'break' | 'collab' | 'fitness';
   expiresAt: number;
-}
-
-type SlotType = FurnitureSlot['type'];
-
-interface TaskTemplate {
-  slotType: SlotType;
-  behavior: AgentBehavior;
-  category: AgentTask['category'];
-  weight: number;
-  durationRangeMs: [number, number];
 }
 
 interface FrozenPair {
@@ -48,8 +37,6 @@ export class BehaviorManager {
   private chatNPC: number | null = null; // NPC player is currently moving to talk to
   private agentTasks = new Map<number, AgentTask>();
   private occupiedSlots = new Set<string>();
-  private collaborationCooldown = new Map<number, number>();
-  private hasWarnedIndexSync = false;
 
   constructor(
     private stateBuffer: AgentStateBuffer,
@@ -71,71 +58,6 @@ export class BehaviorManager {
     }
   }
 
-  private getMissionMood(mission: string): 'focus' | 'collab' | 'break' | 'fitness' {
-    const text = mission.toLowerCase();
-    if (/launch|campaign|partnership|demo|summit|onboard|community/.test(text)) return 'collab';
-    if (/reduce|optimize|audit|compliance|coverage|refactor|migrate|financial/.test(text)) return 'focus';
-    if (/culture|employee|retention|team/.test(text)) return 'break';
-    return 'focus';
-  }
-
-  private buildTemplates(agent: AgentData): TaskTemplate[] {
-    const missionMood = this.getMissionMood(agent.mission);
-    const dept = agent.department;
-    const isRevenue = dept === 'Sales' || dept === 'Marketing';
-    const isBuilder = dept === 'Production' || dept === 'Finance';
-
-    const templates: TaskTemplate[] = [
-      { slotType: 'DESK', behavior: AgentBehavior.TYPE, category: 'focus', weight: 1.1, durationRangeMs: [25000, 70000] },
-      { slotType: 'MEETING_CHAIR', behavior: AgentBehavior.COLLAB, category: 'collab', weight: 0.8, durationRangeMs: [15000, 45000] },
-      { slotType: 'CAFE_TABLE', behavior: AgentBehavior.BREAK, category: 'break', weight: 0.7, durationRangeMs: [12000, 36000] },
-      { slotType: 'COFFEE_MACHINE', behavior: AgentBehavior.BREAK, category: 'break', weight: 0.6, durationRangeMs: [8000, 22000] },
-      { slotType: 'TREADMILL', behavior: AgentBehavior.WORKOUT, category: 'fitness', weight: 0.45, durationRangeMs: [18000, 40000] },
-    ];
-
-    for (const template of templates) {
-      if (isBuilder && template.category === 'focus') template.weight += 1.1;
-      if (isBuilder && template.category === 'collab') template.weight -= 0.15;
-      if (isRevenue && template.category === 'collab') template.weight += 0.9;
-      if (isRevenue && template.category === 'break') template.weight += 0.3;
-      if (dept === 'People' && template.category === 'break') template.weight += 0.8;
-      if (missionMood === template.category) template.weight += 0.75;
-      if (missionMood === 'focus' && template.category === 'fitness') template.weight -= 0.15;
-    }
-
-    return templates.filter(template => template.weight > 0.05);
-  }
-
-  private pickTaskTemplate(agent: AgentData): TaskTemplate {
-    const templates = this.buildTemplates(agent);
-    const total = templates.reduce((acc, t) => acc + t.weight, 0);
-    let ticket = Math.random() * total;
-    for (const template of templates) {
-      ticket -= template.weight;
-      if (ticket <= 0) return template;
-    }
-    return templates[templates.length - 1];
-  }
-
-  private randomDuration([min, max]: [number, number]): number {
-    return min + Math.random() * (max - min);
-  }
-
-  private findCollaborationPartner(index: number, now: number): number | null {
-    const agent = this.agents[index];
-    for (let i = 1; i < this.agents.length; i++) {
-      if (i === index) continue;
-      const candidate = this.agents[i];
-      if (candidate.department !== agent.department) continue;
-      if ((this.collaborationCooldown.get(i) ?? 0) > now) continue;
-      const task = this.agentTasks.get(i);
-      if (!task || task.category !== 'focus') continue;
-      if (this.frozenIndices.has(i)) continue;
-      return i;
-    }
-    return null;
-  }
-
   private assignNewTask(index: number) {
     const agent = this.agents[index];
     const now = Date.now();
@@ -146,31 +68,49 @@ export class BehaviorManager {
       this.occupiedSlots.delete(oldTask.slotId);
     }
 
-    const template = this.pickTaskTemplate(agent);
-    let slotType: SlotType | null = template.slotType;
-    let behavior: AgentBehavior = template.behavior;
-    let category: AgentTask['category'] = template.category;
-
-    if (category === 'collab' && (this.collaborationCooldown.get(index) ?? 0) <= now) {
-      const partner = this.findCollaborationPartner(index, now);
-      if (partner !== null) {
-        const partnerTask = this.agentTasks.get(partner);
-        if (partnerTask?.slotId) {
-          this.occupiedSlots.delete(partnerTask.slotId);
-        }
-        this.stateBuffer.setWaypoint(partner, 0, 1);
-        this.agentTasks.set(partner, {
-          slotId: null,
-          targetPos: partnerTask?.targetPos ?? new THREE.Vector3(0, 0, 0),
-          targetRotation: partnerTask?.targetRotation ?? 0,
-          behavior: AgentBehavior.COLLAB,
-          category: 'collab',
-          expiresAt: now + this.randomDuration([12000, 26000]),
-        });
-        this.stateBuffer.setState(partner, AgentBehavior.COLLAB);
-        this.collaborationCooldown.set(partner, now + 25000);
+    let behavior: AgentBehavior = AgentBehavior.BOIDS;
+    let slotType: FurnitureSlot['type'] | null = null;
+    
+    const rand = Math.random();
+    if (rand < 0.15) {
+      slotType = 'TREADMILL';
+      behavior = AgentBehavior.WORKOUT;
+    } else if (agent.department === 'Production' || agent.department === 'Finance') {
+      // High desk usage
+      if (rand < 0.7) {
+        slotType = 'DESK';
+        behavior = AgentBehavior.SIT;
+      } else if (rand < 0.85) {
+        slotType = 'MEETING_CHAIR';
+        behavior = AgentBehavior.SIT;
+      } else {
+        slotType = 'COFFEE_MACHINE';
+        behavior = AgentBehavior.FROZEN;
       }
-      this.collaborationCooldown.set(index, now + 25000);
+    } else if (agent.department === 'Sales' || agent.department === 'Marketing') {
+      // High social usage
+      if (rand < 0.5) {
+        slotType = 'CAFE_TABLE';
+        behavior = AgentBehavior.TALK;
+      } else if (rand < 0.8) {
+        slotType = 'MEETING_CHAIR';
+        behavior = AgentBehavior.TALK;
+      } else {
+        slotType = 'COFFEE_MACHINE';
+        behavior = AgentBehavior.FROZEN;
+      }
+    } else {
+      // Engineering / HR / Others
+      if (rand < 0.4) {
+        slotType = 'DESK';
+        behavior = AgentBehavior.SIT;
+      } else if (rand < 0.7) {
+        slotType = 'MEETING_CHAIR';
+        behavior = AgentBehavior.SIT;
+      } else {
+        slotType = 'CAFE_TABLE';
+        behavior = AgentBehavior.TALK;
+      }
     }
 
     // Find available slot of requested type
@@ -191,18 +131,14 @@ export class BehaviorManager {
       targetPos = new THREE.Vector3((Math.random() - 0.5) * 40, 0, (Math.random() - 0.5) * 40);
       targetRotation = Math.random() * Math.PI * 2;
       behavior = AgentBehavior.BOIDS;
-      category = 'focus';
     }
-
-    const durationMs = this.randomDuration(template.durationRangeMs);
 
     this.agentTasks.set(index, {
       slotId,
       targetPos,
       targetRotation,
       behavior,
-      category,
-      expiresAt: now + durationMs,
+      expiresAt: now + 20000 + Math.random() * 60000 // Tasks last 20-80 seconds
     });
 
     this.stateBuffer.setWaypoint(index, targetPos.x, targetPos.z);
@@ -211,16 +147,7 @@ export class BehaviorManager {
 
   public update(positions: Float32Array): void {
     const now = Date.now();
-    const gpuCount = Math.floor(positions.length / 4);
-    const count = Math.min(this.agents.length, gpuCount);
-
-    if (!this.hasWarnedIndexSync && gpuCount !== this.agents.length) {
-      this.hasWarnedIndexSync = true;
-      console.warn(
-        `[BehaviorManager] Agent index mismatch (CPU agents=${this.agents.length}, GPU instances=${gpuCount}). ` +
-        `Behavior update will run on min count=${count}.`
-      );
-    }
+    const count = this.agents.length;
 
     // 1. Expire frozen NPC pairs
     for (const [key, pair] of this.frozenPairs) {

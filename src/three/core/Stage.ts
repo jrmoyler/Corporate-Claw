@@ -205,50 +205,43 @@ export class Stage {
     deskGroup.position.set(x, 0, z);
 
     // Table top - Sleek wood
-    const topGeo = new THREE.BoxGeometry(1.7, 0.08, 0.82);
+    const topGeo = new THREE.BoxGeometry(3.5, 0.15, 1.8);
     const topMat = new THREE.MeshStandardNodeMaterial({ color: 0xdee2e6, roughness: 0.3 });
     const top = new THREE.Mesh(topGeo, topMat);
-    top.position.y = 0.72;
+    top.position.y = 0.75;
     top.castShadow = true;
     top.receiveShadow = true;
     deskGroup.add(top);
 
     // Modern frame
     const frameMat = new THREE.MeshStandardNodeMaterial({ color: 0x212529, metalness: 0.8, roughness: 0.2 });
-    const legGeo = new THREE.BoxGeometry(0.07, 0.72, 0.07);
-    [[0.78, 0.36, 0.34], [-0.78, 0.36, 0.34], [0.78, 0.36, -0.34], [-0.78, 0.36, -0.34]].forEach(p => {
+    const legGeo = new THREE.BoxGeometry(0.1, 0.75, 0.1);
+    [[1.6, 0.375, 0.7], [-1.6, 0.375, 0.7], [1.6, 0.375, -0.7], [-1.6, 0.375, -0.7]].forEach(p => {
       const leg = new THREE.Mesh(legGeo, frameMat);
       leg.position.set(p[0], p[1], p[2]);
       deskGroup.add(leg);
     });
 
     // Computer Monitor
-    const standGeo = new THREE.BoxGeometry(0.12, 0.22, 0.1);
+    const standGeo = new THREE.BoxGeometry(0.3, 0.4, 0.3);
     const stand = new THREE.Mesh(standGeo, frameMat);
-    stand.position.set(0, 0.86, -0.22);
+    stand.position.set(0, 0.95, -0.4);
     deskGroup.add(stand);
 
-    const screenGeo = new THREE.BoxGeometry(0.72, 0.42, 0.03);
+    const screenGeo = new THREE.BoxGeometry(1.4, 0.8, 0.05);
     const screenMat = new THREE.MeshStandardNodeMaterial({ color: 0x111111, emissive: 0x111111, emissiveIntensity: 0.5 });
     const screen = new THREE.Mesh(screenGeo, screenMat);
-    screen.position.set(0, 1.08, -0.22);
+    screen.position.set(0, 1.3, -0.4);
     deskGroup.add(screen);
 
     // Keyboard
-    const kbGeo = new THREE.BoxGeometry(0.42, 0.015, 0.16);
+    const kbGeo = new THREE.BoxGeometry(0.8, 0.02, 0.3);
     const kb = new THREE.Mesh(kbGeo, frameMat);
-    kb.position.set(0, 0.765, 0.12);
+    kb.position.set(0, 0.83, 0.2);
     deskGroup.add(kb);
 
-    const mug = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.055, 0.045, 0.09, 16),
-      new THREE.MeshStandardNodeMaterial({ color: 0xf8f9fa, roughness: 0.35 })
-    );
-    mug.position.set(0.52, 0.78, 0.15);
-    deskGroup.add(mug);
-
     // Chair
-    this.createChair(0, 0.58, Math.PI, deskGroup);
+    this.createChair(0, 0.8, Math.PI, deskGroup);
 
     this.environmentGroup.add(deskGroup);
   }
@@ -261,25 +254,25 @@ export class Stage {
     const mat = new THREE.MeshStandardNodeMaterial({ color: 0x343a40, roughness: 0.5 });
     
     // Seat
-    const seatGeo = new THREE.BoxGeometry(0.52, 0.08, 0.5);
+    const seatGeo = new THREE.BoxGeometry(0.8, 0.1, 0.8);
     const seat = new THREE.Mesh(seatGeo, mat);
-    seat.position.y = 0.44;
+    seat.position.y = 0.45;
     group.add(seat);
 
     // Back
-    const backGeo = new THREE.BoxGeometry(0.5, 0.55, 0.08);
+    const backGeo = new THREE.BoxGeometry(0.8, 1.0, 0.1);
     const back = new THREE.Mesh(backGeo, mat);
-    back.position.set(0, 0.72, -0.21);
+    back.position.set(0, 0.9, -0.35);
     group.add(back);
 
     // Stem
-    const stemGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.34, 8);
+    const stemGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8);
     const stem = new THREE.Mesh(stemGeo, mat);
-    stem.position.y = 0.18;
+    stem.position.y = 0.2;
     group.add(stem);
 
     // Base
-    const baseGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.04, 16);
+    const baseGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 16);
     const base = new THREE.Mesh(baseGeo, mat);
     base.position.y = 0.025;
     group.add(base);
@@ -298,34 +291,34 @@ export class Stage {
     const mat = new THREE.MeshStandardNodeMaterial({ color: 0x212529, roughness: 0.4 });
     
     // Belt
-    const beltGeo = new THREE.BoxGeometry(1.0, 0.14, 2.1);
+    const beltGeo = new THREE.BoxGeometry(2.2, 0.2, 4.5);
     const belt = new THREE.Mesh(beltGeo, mat);
-    belt.position.y = 0.07;
+    belt.position.y = 0.1;
     group.add(belt);
 
     // Side rails
-    const railGeo = new THREE.BoxGeometry(0.08, 0.16, 2.1);
+    const railGeo = new THREE.BoxGeometry(0.2, 0.3, 4.5);
     const railMat = new THREE.MeshStandardNodeMaterial({ color: 0x495057 });
     const railL = new THREE.Mesh(railGeo, railMat);
-    railL.position.set(-0.5, 0.13, 0);
+    railL.position.set(-1.1, 0.2, 0);
     group.add(railL);
     const railR = new THREE.Mesh(railGeo, railMat);
-    railR.position.set(0.5, 0.13, 0);
+    railR.position.set(1.1, 0.2, 0);
     group.add(railR);
 
     // Console posts
-    const postGeo = new THREE.BoxGeometry(0.06, 0.74, 0.06);
+    const postGeo = new THREE.BoxGeometry(0.15, 1.4, 0.15);
     const postL = new THREE.Mesh(postGeo, mat);
-    postL.position.set(-0.43, 0.37, 0.88);
+    postL.position.set(-1.0, 0.7, 2.0);
     group.add(postL);
     const postR = new THREE.Mesh(postGeo, mat);
-    postR.position.set(0.43, 0.37, 0.88);
+    postR.position.set(1.0, 0.7, 2.0);
     group.add(postR);
 
     // Console
-    const consoleGeo = new THREE.BoxGeometry(0.94, 0.18, 0.32);
+    const consoleGeo = new THREE.BoxGeometry(2.4, 0.4, 0.8);
     const console = new THREE.Mesh(consoleGeo, mat);
-    console.position.set(0, 0.76, 0.88);
+    console.position.set(0, 1.4, 2.0);
     group.add(console);
 
     this.environmentGroup.add(group);
@@ -336,32 +329,23 @@ export class Stage {
     group.position.set(x, 0, z);
 
     // Table top - White marble look
-    const topGeo = new THREE.CylinderGeometry(0.76, 0.76, 0.08, 32);
+    const topGeo = new THREE.CylinderGeometry(1.8, 1.8, 0.1, 32);
     const topMat = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.1 });
     const top = new THREE.Mesh(topGeo, topMat);
-    top.position.y = 0.74;
+    top.position.y = 1.05;
     group.add(top);
 
     // Chrome leg
-    const legGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.72, 16);
+    const legGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.05, 16);
     const legMat = new THREE.MeshStandardNodeMaterial({ color: 0xadb5bd, metalness: 0.9, roughness: 0.1 });
     const leg = new THREE.Mesh(legGeo, legMat);
-    leg.position.y = 0.36;
+    leg.position.y = 0.525;
     group.add(leg);
 
-    const baseGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.04, 32);
+    const baseGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.05, 32);
     const base = new THREE.Mesh(baseGeo, legMat);
-    base.position.y = 0.02;
+    base.position.y = 0.025;
     group.add(base);
-
-    for (let i = 0; i < 2; i++) {
-      const cup = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.042, 0.08, 14),
-        new THREE.MeshStandardNodeMaterial({ color: i === 0 ? 0xfff3bf : 0xe9ecef })
-      );
-      cup.position.set(i === 0 ? -0.2 : 0.24, 0.81, i === 0 ? 0.12 : -0.1);
-      group.add(cup);
-    }
 
     this.environmentGroup.add(group);
   }
@@ -370,22 +354,22 @@ export class Stage {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
 
-    const counterGeo = new THREE.BoxGeometry(5.4, 1.0, 1.5);
+    const counterGeo = new THREE.BoxGeometry(10, 1.2, 2.5);
     const counterMat = new THREE.MeshStandardNodeMaterial({ color: 0x495057 });
     const counter = new THREE.Mesh(counterGeo, counterMat);
-    counter.position.y = 0.5;
+    counter.position.y = 0.6;
     group.add(counter);
 
-    const topGeo = new THREE.BoxGeometry(5.6, 0.08, 1.65);
+    const topGeo = new THREE.BoxGeometry(10.2, 0.1, 2.7);
     const topMat = new THREE.MeshStandardNodeMaterial({ color: 0x212529 });
     const top = new THREE.Mesh(topGeo, topMat);
-    top.position.y = 1.04;
+    top.position.y = 1.25;
     group.add(top);
 
     // Coffee machine
-    const machineGeo = new THREE.BoxGeometry(0.72, 0.5, 0.45);
+    const machineGeo = new THREE.BoxGeometry(1.5, 1.0, 1.2);
     const machine = new THREE.Mesh(machineGeo, new THREE.MeshStandardNodeMaterial({ color: 0xadb5bd, metalness: 0.8 }));
-    machine.position.set(-1.2, 1.32, 0);
+    machine.position.set(-2, 1.8, 0);
     group.add(machine);
 
     this.environmentGroup.add(group);
@@ -395,15 +379,15 @@ export class Stage {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
 
-    const topGeo = new THREE.BoxGeometry(5.2, 0.12, 2.8);
+    const topGeo = new THREE.BoxGeometry(10, 0.15, 5);
     const topMat = new THREE.MeshStandardNodeMaterial({ color: 0x343a40, roughness: 0.2 });
     const top = new THREE.Mesh(topGeo, topMat);
-    top.position.y = 0.74;
+    top.position.y = 1.0;
     group.add(top);
 
-    const legGeo = new THREE.BoxGeometry(0.12, 0.72, 0.12);
+    const legGeo = new THREE.BoxGeometry(0.2, 1.0, 0.2);
     const legMat = new THREE.MeshStandardNodeMaterial({ color: 0x212529 });
-    [[2.3, 0.36, 1.25], [-2.3, 0.36, 1.25], [2.3, 0.36, -1.25], [-2.3, 0.36, -1.25]].forEach(p => {
+    [[4.5, 0.5, 2], [-4.5, 0.5, 2], [4.5, 0.5, -2], [-4.5, 0.5, -2]].forEach(p => {
       const leg = new THREE.Mesh(legGeo, legMat);
       leg.position.set(p[0], p[1], p[2]);
       group.add(leg);

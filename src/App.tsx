@@ -13,11 +13,6 @@ const App: React.FC = () => {
   const managerRef = useRef<SceneManager | null>(null);
 
   useEffect(() => {
-    if (!('gpu' in navigator)) {
-      console.warn('[Corporate Claw] WebGPU is not available in this browser. Rendering may fail or fall back.');
-      return;
-    }
-
     if (canvasRef.current && !managerRef.current) {
       managerRef.current = new SceneManager(canvasRef.current);
     }
