@@ -11,8 +11,8 @@ export interface FurnitureSlot {
 export const OFFICE_SLOTS: FurnitureSlot[] = [];
 
 // 1. Office Desks (-X, -Z quadrant)
-for (let x = -25; x < -5; x += 4.5) {
-  for (let z = -25; z < -5; z += 4.5) {
+for (let x = -25; x < -5; x += 5) {
+  for (let z = -25; z < -5; z += 5) {
     OFFICE_SLOTS.push({
       id: `desk-${x}-${z}`,
       type: 'DESK',
@@ -23,7 +23,7 @@ for (let x = -25; x < -5; x += 4.5) {
 }
 
 // 2. Gym Treadmills (+X, -Z quadrant)
-for (let x = 6; x < 24; x += 4.8) {
+for (let x = 5; x < 25; x += 6) {
   OFFICE_SLOTS.push({
     id: `treadmill-${x}`,
     type: 'TREADMILL',
@@ -33,14 +33,14 @@ for (let x = 6; x < 24; x += 4.8) {
 }
 
 // 3. Cafe Tables (+X, +Z quadrant)
-for (let x = 10; x < 25; x += 6.4) {
-  for (let z = 10; z < 25; z += 6.4) {
+for (let x = 10; x < 25; x += 8) {
+  for (let z = 10; z < 25; z += 8) {
     // 4 chairs per table
     const chairOffsets = [
-      { dx: 0.95, dz: 0, rot: -Math.PI / 2 },
-      { dx: -0.95, dz: 0, rot: Math.PI / 2 },
-      { dx: 0, dz: 0.95, rot: 0 },
-      { dx: 0, dz: -0.95, rot: Math.PI },
+      { dx: 1.2, dz: 0, rot: -Math.PI / 2 },
+      { dx: -1.2, dz: 0, rot: Math.PI / 2 },
+      { dx: 0, dz: 1.2, rot: 0 },
+      { dx: 0, dz: -1.2, rot: Math.PI },
     ];
     chairOffsets.forEach((off, i) => {
       OFFICE_SLOTS.push({
@@ -57,8 +57,8 @@ for (let x = 10; x < 25; x += 6.4) {
 const meetingTablePos = { x: -15, z: 15 };
 for (let i = 0; i < 8; i++) {
   const angle = (i / 8) * Math.PI * 2;
-  const dx = Math.cos(angle) * 2.35;
-  const dz = Math.sin(angle) * 1.55;
+  const dx = Math.cos(angle) * 3;
+  const dz = Math.sin(angle) * 2;
   OFFICE_SLOTS.push({
     id: `meeting-${i}`,
     type: 'MEETING_CHAIR',
