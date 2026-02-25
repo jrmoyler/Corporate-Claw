@@ -78,6 +78,9 @@ export enum AgentBehavior {
   TALK = 3,    // position locked, playing talk animation
   SIT = 4,     // sitting at a desk
   WORKOUT = 5, // exercising in the gym
+  TYPE = 6,    // focused desk typing loop
+  BREAK = 7,   // coffee/break area idle loop
+  COLLAB = 8,  // collaborative standing discussion
 }
 
 export interface ActiveEncounter {
