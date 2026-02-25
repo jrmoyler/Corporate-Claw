@@ -49,6 +49,7 @@ export class BehaviorManager {
   private agentTasks = new Map<number, AgentTask>();
   private occupiedSlots = new Set<string>();
   private collaborationCooldown = new Map<number, number>();
+  private hasWarnedIndexSync = false;
 
   constructor(
     private stateBuffer: AgentStateBuffer,
@@ -210,7 +211,16 @@ export class BehaviorManager {
 
   public update(positions: Float32Array): void {
     const now = Date.now();
-    const count = this.agents.length;
+    const gpuCount = Math.floor(positions.length / 4);
+    const count = Math.min(this.agents.length, gpuCount);
+
+    if (!this.hasWarnedIndexSync && gpuCount !== this.agents.length) {
+      this.hasWarnedIndexSync = true;
+      console.warn(
+        `[BehaviorManager] Agent index mismatch (CPU agents=${this.agents.length}, GPU instances=${gpuCount}). ` +
+        `Behavior update will run on min count=${count}.`
+      );
+    }
 
     // 1. Expire frozen NPC pairs
     for (const [key, pair] of this.frozenPairs) {

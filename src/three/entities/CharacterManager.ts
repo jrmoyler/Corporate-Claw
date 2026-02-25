@@ -265,6 +265,22 @@ export class CharacterManager {
 
       const pos = posElement.xyz.toVar();
 
+      // Office simulation bounds from product spec
+      const minX = float(-20.0);
+      const maxX = float(20.0);
+      const minZ = float(-15.0);
+      const maxZ = float(15.0);
+
+      // Zone volumes
+      const coffeeCenter = vec3(float(0.0), float(0.0), float(5.0));
+      const coffeeRadius = float(3.0);
+      const coffeeDist = pos.sub(coffeeCenter).length();
+      const inCoffeeZone = coffeeDist.lessThan(coffeeRadius);
+      const inWorkoutZone = pos.x.greaterThan(float(10.0))
+        .and(pos.x.lessThan(float(18.0)))
+        .and(pos.z.greaterThan(float(-10.0)))
+        .and(pos.z.lessThan(float(15.0)));
+
       // ── Movement Logic ────────────────────────────────────────
       const isBoids = agentState.lessThan(float(0.5));
       const isFrozen = agentState.greaterThan(float(0.5)).and(agentState.lessThan(float(1.5)));
@@ -287,18 +303,26 @@ export class CharacterManager {
         }).Else(() => {
           posElement.assign(vec4(pos, 1.0));
         });
-      }).ElseIf(isBoids, () => {
-        // ── BOIDS (state ≈ 0) ──────────────────────────────────
+      }).ElseIf(isBoids.or(isWorkout).or(isBreak), () => {
+        // ── BOID-LITE MOVEMENT (wandering / workout / coffee social) ───────────
         const vel   = velElement.xyz.toVar();
         const accel = vec3(0).toVar();
 
-        // World boundary (square)
-        const halfSize = this.uWorldSize;
-        If(pos.x.abs().greaterThan(halfSize).or(pos.z.abs().greaterThan(halfSize)), () => {
-          accel.addAssign(pos.negate().normalize().mul(0.01));
+        // 1) Boundary enforcement (soft clamp) requested in spec.
+        If(pos.x.greaterThan(maxX), () => {
+          accel.addAssign(vec3(float(-1.0), float(0.0), float(0.0)));
+        });
+        If(pos.x.lessThan(minX), () => {
+          accel.addAssign(vec3(float(1.0), float(0.0), float(0.0)));
+        });
+        If(pos.z.greaterThan(maxZ), () => {
+          accel.addAssign(vec3(float(0.0), float(0.0), float(-1.0)));
+        });
+        If(pos.z.lessThan(minZ), () => {
+          accel.addAssign(vec3(float(0.0), float(0.0), float(1.0)));
         });
 
-        // Separation
+        // Default Boids-Lite separation
         Loop({ start: uint(0), end: uint(this.instanceCount), type: 'uint' }, ({ i }) => {
           const otherPos = this.positionStorage.element(i).xyz;
           const diff = pos.sub(otherPos);
@@ -306,14 +330,30 @@ export class CharacterManager {
           If(dist.lessThan(this.uSeparationRadius).and(dist.greaterThan(0.01)), () => {
             accel.addAssign(diff.normalize().mul(this.uSeparationStrength));
           });
+
+          // 2) Coffee area local repulsion rule from spec.
+          If(inCoffeeZone.and(dist.lessThan(float(0.8))).and(dist.greaterThan(float(0.001))), () => {
+            const coffeeForce = diff.normalize().mul(float(1.0).sub(dist));
+            accel.addAssign(coffeeForce);
+          });
         });
 
         const newVel = vel.add(accel).toVar();
         const speed  = newVel.length();
         If(speed.greaterThan(0.001), () => {
-          newVel.assign(newVel.normalize().mul(this.uSpeed));
+          const jitter = sin(time.mul(8.0).add(float(index).mul(0.63))).mul(0.16).add(1.0);
+          const speedMult = float(1.0).toVar();
+
+          // 3) State to velocity mapping
+          If(isWorkout.and(inWorkoutZone), () => {
+            speedMult.assign(float(2.5).mul(jitter));
+          }).ElseIf(isBreak.or(inCoffeeZone), () => {
+            speedMult.assign(float(0.8));
+          });
+
+          newVel.assign(newVel.normalize().mul(this.uSpeed).mul(speedMult));
         }).Else(() => {
-          newVel.assign(vec3(0, 0, this.uSpeed));
+          newVel.assign(vec3(0, 0, this.uSpeed.mul(0.6)));
         });
 
         velElement.assign(vec4(newVel, 0.0));
@@ -329,6 +369,12 @@ export class CharacterManager {
         const finalPos = pos.toVar();
         If(isSit.or(isType), () => {
            finalPos.y.assign(float(-0.42)); // Sit down offset - matches chair height
+           // Desk behavior has near-zero velocity (state-velocity mapping)
+           If(facing.length().greaterThan(float(0.001)), () => {
+             velElement.assign(vec4(facing.normalize().mul(this.uSpeed.mul(0.1)), 0.0));
+           }).Else(() => {
+             velElement.assign(vec4(vec3(0, 0, this.uSpeed.mul(0.1)), 0.0));
+           });
         }).ElseIf(isWorkout, () => {
            finalPos.y.assign(float(0.1)); // On treadmill belt
         }).ElseIf(isBreak, () => {
