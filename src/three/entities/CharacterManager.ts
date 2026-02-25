@@ -261,7 +261,7 @@ export class CharacterManager {
       const posElement = this.positionStorage.element(index);
       const velElement = this.velocityStorage.element(index);
       const agentData  = agentStorage.element(index);   // vec4: (wpX, 0, wpZ, state)
-      const agentState = agentData.w;                   // float: 0=BOIDS 1=FROZEN 2=GOTO 3=TALK 4=SIT 5=WORKOUT
+      const agentState = agentData.w;                   // float: 0=BOIDS 1=FROZEN 2=GOTO 3=TALK 4=SIT 5=WORKOUT 6=TYPE 7=BREAK 8=COLLAB
 
       const pos = posElement.xyz.toVar();
 
@@ -271,7 +271,10 @@ export class CharacterManager {
       const isGoto = agentState.greaterThan(float(1.5)).and(agentState.lessThan(float(2.5)));
       const isTalk = agentState.greaterThan(float(2.5)).and(agentState.lessThan(float(3.5)));
       const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
-      const isWorkout = agentState.greaterThan(float(4.5));
+      const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
+      const isType = agentState.greaterThan(float(5.5)).and(agentState.lessThan(float(6.5)));
+      const isBreak = agentState.greaterThan(float(6.5)).and(agentState.lessThan(float(7.5)));
+      const isCollab = agentState.greaterThan(float(7.5));
 
       If(isGoto, () => {
         const waypointXZ = vec3(agentData.x, float(0), agentData.z);
@@ -316,7 +319,7 @@ export class CharacterManager {
         velElement.assign(vec4(newVel, 0.0));
         posElement.assign(vec4(pos.add(newVel), 1.0));
       }).Else(() => {
-        // FROZEN, TALK, SIT, WORKOUT — hold position
+        // FROZEN, TALK, SIT, WORKOUT, TYPE, BREAK, COLLAB — hold position
         const facing = vec3(agentData.x, float(0), agentData.z);
         If(facing.length().greaterThan(float(0.001)), () => {
           velElement.assign(vec4(facing, 0.0));
@@ -324,10 +327,14 @@ export class CharacterManager {
         
         // Lower Y slightly if sitting, raise if on treadmill
         const finalPos = pos.toVar();
-        If(isSit, () => {
-           finalPos.y.assign(float(-0.45)); // Sit down offset - matches chair height
+        If(isSit.or(isType), () => {
+           finalPos.y.assign(float(-0.42)); // Sit down offset - matches chair height
         }).ElseIf(isWorkout, () => {
            finalPos.y.assign(float(0.1)); // On treadmill belt
+        }).ElseIf(isBreak, () => {
+           finalPos.y.assign(float(-0.05)); // Slight lean while sipping coffee
+        }).ElseIf(isCollab, () => {
+           finalPos.y.assign(float(0.02)); // Upright standing discussion
         }).Else(() => {
            finalPos.y.assign(float(0));
         });
@@ -437,7 +444,10 @@ export class CharacterManager {
         const isGoto = agentState.greaterThan(float(1.5)).and(agentState.lessThan(float(2.5)));
         const isTalk = agentState.greaterThan(float(2.5)).and(agentState.lessThan(float(3.5)));
         const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
-        const isWorkout = agentState.greaterThan(float(4.5));
+        const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
+      const isType = agentState.greaterThan(float(5.5)).and(agentState.lessThan(float(6.5)));
+      const isBreak = agentState.greaterThan(float(6.5)).and(agentState.lessThan(float(7.5)));
+      const isCollab = agentState.greaterThan(float(7.5));
 
         const buildSkinMat = (animBuf: any, numFrames: number, duration: number, speedMult: any = float(1.0)) => {
           const animTime = time.add(timeOffset).mul(speedMult);
@@ -458,10 +468,14 @@ export class CharacterManager {
 
         If(isFrozen.or(isSit), () => {
           buildSkinMat(idleBuffer, this.numIdleFrames, this.idleDuration);
-        }).ElseIf(isTalk, () => {
+        }).ElseIf(isType, () => {
+          buildSkinMat(talkBuffer, this.numTalkFrames, this.talkDuration, float(1.2)); // keyboard hand motion
+        }).ElseIf(isTalk.or(isCollab), () => {
           buildSkinMat(talkBuffer, this.numTalkFrames, this.talkDuration);
+        }).ElseIf(isBreak, () => {
+          buildSkinMat(idleBuffer, this.numIdleFrames, this.idleDuration, float(0.75)); // relaxed coffee hold
         }).ElseIf(isWorkout, () => {
-          buildSkinMat(walkBuffer, this.numWalkFrames, this.walkDuration, float(2.0)); // Run faster
+          buildSkinMat(walkBuffer, this.numWalkFrames, this.walkDuration, float(2.1)); // Run faster on treadmill
         }).Else(() => {
           buildSkinMat(walkBuffer, this.numWalkFrames, this.walkDuration);
         });
