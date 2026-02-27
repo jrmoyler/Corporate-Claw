@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 //  Corporate config
 // ─────────────────────────────────────────────────────────────
-export const COMPANY_NAME = 'FakeClaw Inc.';
+export const COMPANY_NAME = 'Corporate Claw';
 export const PLAYER_INDEX = 0;
 export const NPC_START_INDEX = 1;
 export const TOTAL_COUNT = 2000;
@@ -116,7 +116,7 @@ const DEPARTMENTS: DepartmentConfig[] = [
   },
   {
     name: 'Marketing',
-    color: '#EF52BA', // Pink/Magenta
+    color: '#a855f7', // Purple (matching reference)
     roles: [
       'Content Strategist',
       'Growth Marketer',
@@ -144,7 +144,7 @@ const DEPARTMENTS: DepartmentConfig[] = [
     missions: [
       'Launch the "Future of IT" brand campaign',
       'Increase organic traffic by 30% via SEO',
-      'Organize the FakeClaw Annual Tech Summit',
+      'Organize the Corporate Claw Annual Tech Summit',
       'Achieve a 5% click-through rate on the new ad set',
       'Publish the 2026 Industry Trends whitepaper',
       'Grow the LinkedIn community to 100k followers',
@@ -229,7 +229,7 @@ _agents.push({
   department: 'Executive',
   role: 'CEO',
   expertise: ['Strategy', 'Leadership', 'Vision'],
-  mission: 'Lead FakeClaw Inc. to market dominance',
+  mission: 'Lead Corporate Claw to market dominance',
   personality: 'Decisive and inspiring leader',
   isPlayer: true,
   color: '#7EACEA', // Light Blue

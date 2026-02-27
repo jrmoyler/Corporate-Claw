@@ -1,5 +1,6 @@
 
 import * as THREE from 'three/webgpu';
+import { useStore } from '../../store/useStore';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   Fn,
@@ -28,6 +29,7 @@ import { BoidsParams, AgentBehavior, ExpressionKey } from '../../types';
 import { AgentStateBuffer } from '../behavior/AgentStateBuffer';
 import { ExpressionBuffer } from '../behavior/ExpressionBuffer';
 import { AGENTS, PLAYER_INDEX } from '../../data/agents';
+import { PHYSICAL_OBSTACLES } from '../../data/officeLayout';
 
 export class CharacterManager {
   private instanceCount = 100;
@@ -39,6 +41,11 @@ export class CharacterManager {
   private colorAttribute: THREE.InstancedBufferAttribute | null = null;
   private positionStorage: any;
   private velocityStorage: any;
+
+  // Obstacles (Furniture)
+  private obstacleAttribute: THREE.StorageBufferAttribute | null = null;
+  private obstacleStorage: any;
+  private numObstacles = 0;
 
   // Agent state buffer (CPU+GPU): waypoint + behavior state per instance
   private agentStateBuffer: AgentStateBuffer | null = null;
@@ -71,9 +78,9 @@ export class CharacterManager {
 
   // Uniforms
   private uSpeed = uniform(0.015);
-  private uSeparationRadius = uniform(0.6);
-  private uSeparationStrength = uniform(0.030);
-  private uWorldSize = uniform(20.0);
+  private uSeparationRadius = uniform(0.8); // Increased radius
+  private uSeparationStrength = uniform(0.050); // Increased strength
+  private uWorldSize = uniform(30.0);
   private worldSize = 20.0;
 
   public isLoaded = false;
@@ -160,6 +167,11 @@ export class CharacterManager {
     this.worldSize = size;
   }
 
+  public updateSpeedMultiplier(mult: number) {
+    const baseSpeed = useStore.getState().boidsParams.speed;
+    this.uSpeed.value = baseSpeed * mult;
+  }
+
   /**
    * Reads back the GPU position buffer to CPU.
    * Must be called after renderer.compute() each frame.
@@ -240,6 +252,18 @@ export class CharacterManager {
     this.positionStorage = storage(this.posAttribute, 'vec4', this.instanceCount);
     this.velocityStorage = storage(this.velAttribute, 'vec4', this.instanceCount);
 
+    // Obstacles
+    this.numObstacles = PHYSICAL_OBSTACLES.length;
+    const obstacleArray = new Float32Array(this.numObstacles * 4);
+    PHYSICAL_OBSTACLES.forEach((obs, i) => {
+      obstacleArray[i * 4 + 0] = obs.position.x;
+      obstacleArray[i * 4 + 1] = obs.position.y;
+      obstacleArray[i * 4 + 2] = obs.position.z;
+      obstacleArray[i * 4 + 3] = obs.radius;
+    });
+    this.obstacleAttribute = new THREE.StorageBufferAttribute(obstacleArray, 4);
+    this.obstacleStorage = storage(this.obstacleAttribute, 'vec4', this.numObstacles);
+
     // Agent state buffer — player starts FROZEN, NPCs start BOIDS (0 = default)
     // Create BEFORE initComputeNode so the storage node is ready, and set
     // needsUpdate AFTER the attribute is constructed to force the initial upload.
@@ -271,14 +295,31 @@ export class CharacterManager {
       const isGoto = agentState.greaterThan(float(1.5)).and(agentState.lessThan(float(2.5)));
       const isTalk = agentState.greaterThan(float(2.5)).and(agentState.lessThan(float(3.5)));
       const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
-      const isWorkout = agentState.greaterThan(float(4.5));
+      const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
+      const isRegistering = agentState.greaterThan(float(5.5));
 
       If(isGoto, () => {
         const waypointXZ = vec3(agentData.x, float(0), agentData.z);
         const toTarget = waypointXZ.sub(pos);
         const dist = toTarget.length();
+        
+        const gotoVel = vec3(0).toVar();
         If(dist.greaterThan(float(0.2)), () => {
-          const gotoVel = toTarget.normalize().mul(this.uSpeed.mul(3.0));
+          gotoVel.assign(toTarget.normalize().mul(this.uSpeed.mul(3.0)));
+          
+          // Obstacle avoidance for GOTO
+          Loop({ start: uint(0), end: uint(this.numObstacles), type: 'uint' }, ({ i }) => {
+            const obsData = this.obstacleStorage.element(i);
+            const obsPos = obsData.xyz;
+            const obsRadius = obsData.w;
+            const diff = pos.sub(obsPos);
+            const d = diff.length();
+            If(d.lessThan(obsRadius.add(float(0.4))), () => {
+              const pushForce = diff.normalize().mul(this.uSpeed.mul(2.0));
+              gotoVel.addAssign(pushForce);
+            });
+          });
+          
           velElement.assign(vec4(gotoVel, 0.0));
           posElement.assign(vec4(pos.add(gotoVel), 1.0));
         }).Else(() => {
@@ -290,9 +331,9 @@ export class CharacterManager {
         const accel = vec3(0).toVar();
 
         // World boundary (square)
-        const halfSize = this.uWorldSize;
+        const halfSize = this.uWorldSize.sub(float(1.5)); // Inset slightly to account for agent radius
         If(pos.x.abs().greaterThan(halfSize).or(pos.z.abs().greaterThan(halfSize)), () => {
-          accel.addAssign(pos.negate().normalize().mul(0.01));
+          accel.addAssign(pos.negate().normalize().mul(0.05)); // Stronger pull back
         });
 
         // Separation
@@ -305,6 +346,19 @@ export class CharacterManager {
           });
         });
 
+        // Obstacle Avoidance
+        Loop({ start: uint(0), end: uint(this.numObstacles), type: 'uint' }, ({ i }) => {
+          const obsData = this.obstacleStorage.element(i);
+          const obsPos = obsData.xyz;
+          const obsRadius = obsData.w;
+          const diff = pos.sub(obsPos);
+          const dist = diff.length();
+          If(dist.lessThan(obsRadius.add(float(0.8))), () => {
+            const pushForce = diff.normalize().mul(this.uSeparationStrength.mul(8.0));
+            accel.addAssign(pushForce);
+          });
+        });
+
         const newVel = vel.add(accel).toVar();
         const speed  = newVel.length();
         If(speed.greaterThan(0.001), () => {
@@ -313,8 +367,15 @@ export class CharacterManager {
           newVel.assign(vec3(0, 0, this.uSpeed));
         });
 
+        const nextPos = pos.add(newVel).toVar();
+        
+        // Final strict boundary clamp
+        const limit = this.uWorldSize.sub(float(1.0));
+        nextPos.x.assign(nextPos.x.clamp(limit.negate(), limit));
+        nextPos.z.assign(nextPos.z.clamp(limit.negate(), limit));
+
         velElement.assign(vec4(newVel, 0.0));
-        posElement.assign(vec4(pos.add(newVel), 1.0));
+        posElement.assign(vec4(nextPos, 1.0));
       }).Else(() => {
         // FROZEN, TALK, SIT, WORKOUT — hold position
         const facing = vec3(agentData.x, float(0), agentData.z);
@@ -328,6 +389,8 @@ export class CharacterManager {
            finalPos.y.assign(float(-0.45)); // Sit down offset - matches chair height
         }).ElseIf(isWorkout, () => {
            finalPos.y.assign(float(0.1)); // On treadmill belt
+        }).ElseIf(isRegistering, () => {
+           finalPos.y.assign(float(0)); // Standing at reception
         }).Else(() => {
            finalPos.y.assign(float(0));
         });
@@ -349,8 +412,8 @@ export class CharacterManager {
       if (this.colorAttribute) instancedGeometry.setAttribute('instanceColor', this.colorAttribute);
 
       const material = new THREE.MeshStandardNodeMaterial();
-      material.roughness = 1;
-      material.metalness = 0.25;
+      material.roughness = 0.4; // Slightly glossy
+      material.metalness = 0.1; // Non-metallic plastic
 
       const instanceColor = attribute('instanceColor', 'vec3');
       const map = (baseMaterial as any).map;
@@ -437,7 +500,8 @@ export class CharacterManager {
         const isGoto = agentState.greaterThan(float(1.5)).and(agentState.lessThan(float(2.5)));
         const isTalk = agentState.greaterThan(float(2.5)).and(agentState.lessThan(float(3.5)));
         const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
-        const isWorkout = agentState.greaterThan(float(4.5));
+        const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
+        const isRegistering = agentState.greaterThan(float(5.5));
 
         const buildSkinMat = (animBuf: any, numFrames: number, duration: number, speedMult: any = float(1.0)) => {
           const animTime = time.add(timeOffset).mul(speedMult);
@@ -458,7 +522,7 @@ export class CharacterManager {
 
         If(isFrozen.or(isSit), () => {
           buildSkinMat(idleBuffer, this.numIdleFrames, this.idleDuration);
-        }).ElseIf(isTalk, () => {
+        }).ElseIf(isTalk.or(isRegistering), () => {
           buildSkinMat(talkBuffer, this.numTalkFrames, this.talkDuration);
         }).ElseIf(isWorkout, () => {
           buildSkinMat(walkBuffer, this.numWalkFrames, this.walkDuration, float(2.0)); // Run faster

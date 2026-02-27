@@ -4,27 +4,42 @@ import { useStore } from '../store/useStore';
 import DebugPanel from './DebugPanel';
 import HelpModal from './HelpModal';
 import ChatPanel from './ChatPanel';
+import Dashboard from './Dashboard';
+import TrainingModule from './TrainingModule';
+import WorldEvents from './WorldEvents';
 import { AGENTS } from '../data/agents';
-import { HelpCircle } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { HelpCircle, BarChart2, GraduationCap, Trophy, Star } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 
 const UIOverlay: React.FC = () => {
   const { 
     isThinking, 
     isDebugOpen, 
     toggleDebug, 
+    isDashboardOpen,
+    toggleDashboard,
+    trainingState,
+    setTrainingMode,
     selectedNpcIndex,
     selectedPosition,
     hoveredNpcIndex,
     hoverPosition,
     startChat,
     endChat,
-    isChatting
+    isChatting,
+    agentProgressions
   } = useStore();
   const [isHelpOpen, setHelpOpen] = useState(false);
+  const [showBranding, setShowBranding] = useState(true);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setShowBranding(false), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const selectedAgent = selectedNpcIndex != null ? AGENTS[selectedNpcIndex] ?? null : null;
   const hoveredAgent = hoveredNpcIndex != null ? AGENTS[hoveredNpcIndex] ?? null : null;
+  const activeEncounter = useStore((state) => state.activeEncounter);
 
   const handleStartChat = () => {
     if (selectedNpcIndex !== null) {
@@ -112,40 +127,80 @@ const UIOverlay: React.FC = () => {
       {/* Top Header */}
       {!isChatting && (
         <div className="flex justify-between items-start relative z-30 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-white p-6 rounded-[32px] border border-black/5 shadow-xl max-w-[340px] pointer-events-auto flex gap-4">
-            <div className="w-2.5 h-10 bg-[#7EACEA] rounded-full shrink-0 mt-1" />
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-2xl font-black text-zinc-900 tracking-tight uppercase">Corporate Claw</h1>
-                <button
-                  onClick={() => setHelpOpen(true)}
-                  className="text-zinc-300 hover:text-zinc-500 transition-colors"
-                >
-                  <HelpCircle size={22} strokeWidth={2} />
-                </button>
-              </div>
-              <p className="text-[13px] text-zinc-400 font-medium leading-snug">
-                Autonomous corporate agent simulation powered by <a href="https://threejs.org" target="_blank" rel="noopener noreferrer" className="underline decoration-zinc-300 underline-offset-2 hover:text-zinc-600">three.js</a> WebGPU renderer
-              </p>
-            </div>
-          </div>
+          <AnimatePresence>
+            {showBranding && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-white p-6 rounded-[32px] border border-black/5 shadow-xl max-w-[340px] pointer-events-auto flex gap-4"
+              >
+                <div className="w-2.5 h-10 bg-[#7EACEA] rounded-full shrink-0 mt-1" />
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h1 className="text-2xl font-black text-zinc-900 tracking-tight uppercase">Corporate Claw</h1>
+                    <button
+                      onClick={() => setHelpOpen(true)}
+                      className="text-zinc-300 hover:text-zinc-500 transition-colors"
+                    >
+                      <HelpCircle size={22} strokeWidth={2} />
+                    </button>
+                  </div>
+                  <p className="text-[13px] text-zinc-400 font-medium leading-snug">
+                    Autonomous corporate agent simulation powered by <a href="https://threejs.org" target="_blank" rel="noopener noreferrer" className="underline decoration-zinc-300 underline-offset-2 hover:text-zinc-600">three.js</a> WebGPU renderer
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Debug Button */}
-          <button
-            onClick={toggleDebug}
-            className={`pointer-events-auto px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 border ${
-              isDebugOpen
-              ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg'
-              : 'bg-white/80 text-zinc-500 border-black/5 hover:bg-white hover:text-zinc-900'
-            }`}
-          >
-            {isDebugOpen ? 'Close Debug' : 'Debug'}
-          </button>
+          <div className="flex-1" />
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pointer-events-auto">
+            <button
+              onClick={() => setTrainingMode(true)}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 border flex items-center gap-2 ${
+                trainingState.isTrainingMode
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg'
+                : 'bg-white/80 text-zinc-500 border-black/5 hover:bg-white hover:text-indigo-600'
+              }`}
+            >
+              <GraduationCap size={16} />
+              Training
+            </button>
+
+            <button
+              onClick={toggleDashboard}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 border flex items-center gap-2 ${
+                isDashboardOpen
+                ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg'
+                : 'bg-white/80 text-zinc-500 border-black/5 hover:bg-white hover:text-zinc-900'
+              }`}
+            >
+              <BarChart2 size={16} />
+              Dashboard
+            </button>
+
+            <button
+              onClick={toggleDebug}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 border ${
+                isDebugOpen
+                ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg'
+                : 'bg-white/80 text-zinc-500 border-black/5 hover:bg-white hover:text-zinc-900'
+              }`}
+            >
+              {isDebugOpen ? 'Close Debug' : 'Debug'}
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Debug Panel Mount */}
+      {/* Panels Mount */}
       <DebugPanel />
+      <Dashboard />
+      <TrainingModule />
+      <WorldEvents />
 
       {/* Help Modal */}
       <HelpModal isOpen={isHelpOpen} onClose={() => setHelpOpen(false)} />
@@ -164,6 +219,14 @@ const UIOverlay: React.FC = () => {
                 {selectedAgent.department}
               </p>
               <h2 className="text-xl font-black text-zinc-900 leading-tight">{selectedAgent.role}</h2>
+              {activeEncounter && activeEncounter.npcIndex === selectedNpcIndex && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                    {activeEncounter.npcStatus}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -180,6 +243,36 @@ const UIOverlay: React.FC = () => {
           </div>
 
           <p className="text-[11px] text-zinc-400 leading-snug mb-5">{selectedAgent.personality}</p>
+
+          {/* Progression Stats */}
+          {agentProgressions[selectedNpcIndex] && (
+            <div className="mb-5 bg-zinc-50 rounded-xl p-3 border border-zinc-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
+                  <Trophy size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Level</p>
+                  <p className="text-sm font-black text-zinc-900">{agentProgressions[selectedNpcIndex].level}</p>
+                </div>
+              </div>
+              <div className="flex-1 ml-4">
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">XP</p>
+                  <p className="text-[10px] font-black text-zinc-900 uppercase tracking-widest">
+                    {Math.floor(agentProgressions[selectedNpcIndex].xp % 100)} / 100
+                  </p>
+                </div>
+                <div className="h-1 w-full bg-zinc-200 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${agentProgressions[selectedNpcIndex].xp % 100}%` }}
+                    className="h-full bg-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {isChatting ? (
             <button

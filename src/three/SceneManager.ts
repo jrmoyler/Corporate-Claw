@@ -135,7 +135,7 @@ export class SceneManager {
         }));
 
         try {
-          const systemInstruction = `You are ${agent.role} at FakeClaw Inc.
+          const systemInstruction = `You are ${agent.role} at Corporate Claw.
 Department: ${agent.department}
 Mission: ${agent.mission}
 Personality: ${agent.personality}
@@ -251,10 +251,17 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
     });
 
     // 3. Camera follow: NPC if one is selected, otherwise always follow the player
-    const { isChatting, selectedNpcIndex, setSelectedPosition } = useStore.getState();
+    const { isChatting, selectedNpcIndex, setSelectedPosition, activeEvents } = useStore.getState();
     const followIdx = this.selectedIndex ?? PLAYER_INDEX;
     const pos = this.characters.getCPUPosition(followIdx);
     this.stage.setFollowTarget(pos);
+
+    // Update speed multiplier based on events
+    let speedMult = 1.0;
+    activeEvents.forEach(e => {
+      if (e.impact.speedMult) speedMult *= e.impact.speedMult;
+    });
+    this.characters.updateSpeedMultiplier(speedMult);
 
     // Update selected NPC screen position for UI bubble
     if (selectedNpcIndex !== null) {
@@ -278,26 +285,16 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
       const playerState = this.characters.getAgentState(PLAYER_INDEX);
       if (playerState === AgentBehavior.GOTO) {
         if (this.stage.controls) this.stage.controls.enabled = false;
-        // Slow zoom in
-        if (this.stage.controls) {
-          this.stage.controls.minDistance = THREE.MathUtils.lerp(this.stage.controls.minDistance, 4, 0.05);
-          this.stage.controls.maxDistance = THREE.MathUtils.lerp(this.stage.controls.maxDistance, 6, 0.05);
-        }
       } else {
         // Re-enable controls once arrived
         if (this.stage.controls) {
           this.stage.controls.enabled = true;
-          // Keep it zoomed in but allow some zoom range
-          this.stage.controls.minDistance = THREE.MathUtils.lerp(this.stage.controls.minDistance, 3, 0.05);
-          this.stage.controls.maxDistance = THREE.MathUtils.lerp(this.stage.controls.maxDistance, 10, 0.05);
         }
       }
     } else {
       // Reset camera constraints when not chatting
       if (this.stage.controls) {
         this.stage.controls.enabled = true;
-        this.stage.controls.minDistance = THREE.MathUtils.lerp(this.stage.controls.minDistance, 3, 0.05);
-        this.stage.controls.maxDistance = THREE.MathUtils.lerp(this.stage.controls.maxDistance, 50, 0.05);
       }
     }
 
@@ -311,7 +308,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
     useStore.setState({ isThinking: true });
 
     try {
-      const systemInstruction = `You are ${agent.role} at FakeClaw Inc.
+      const systemInstruction = `You are ${agent.role} at Corporate Claw.
 Department: ${agent.department}
 Mission: ${agent.mission}
 Personality: ${agent.personality}

@@ -22,6 +22,56 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+export interface AgentNeeds {
+  energy: number;
+  focus: number;
+  social: number;
+}
+
+export interface CompanyStats {
+  totalMissions: number;
+  successRate: number;
+  avgEfficiency: number;
+  resourceUtilization: number;
+  departmentPerformance: Record<string, number>;
+}
+
+export interface TrainingExercise {
+  id: string;
+  name: string;
+  description: string;
+  difficulty: 'Junior' | 'Senior' | 'Executive';
+  completed: boolean;
+}
+
+export interface TrainingState {
+  isTrainingMode: boolean;
+  activeExercise: TrainingExercise | null;
+  completedExercises: string[];
+}
+
+export interface AgentProgression {
+  xp: number;
+  level: number;
+  unlockedEquipment: string[];
+}
+
+export interface WorldEvent {
+  id: string;
+  name: string;
+  description: string;
+  type: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+  duration: number; // in seconds
+  startTime: number;
+  impact: {
+    energyDecayMult?: number;
+    focusDecayMult?: number;
+    socialDecayMult?: number;
+    speedMult?: number;
+    successRateMult?: number;
+  };
+}
+
 export interface CharacterState {
   currentAction: string;
   isThinking: boolean;
@@ -44,12 +94,20 @@ export interface CharacterState {
   performance: PerformanceStats;
   lastSpeakingTrigger: { index: number, isSpeaking: boolean, timestamp: number } | null;
 
+  // New State
+  companyStats: CompanyStats;
+  trainingState: TrainingState;
+  isDashboardOpen: boolean;
+  activeEvents: WorldEvent[];
+  agentProgressions: Record<number, AgentProgression>;
+
   setAnimation: (name: string) => void;
   setSpeaking: (index: number, isSpeaking: boolean) => void;
   setThinking: (isThinking: boolean) => void;
   setIsTyping: (isTyping: boolean) => void;
   setAIResponse: (response: string) => void;
   toggleDebug: () => void;
+  toggleDashboard: () => void;
   setInstanceCount: (count: number) => void;
   setWorldSize: (size: number) => void;
   setBoidsParams: (params: Partial<BoidsParams>) => void;
@@ -63,6 +121,15 @@ export interface CharacterState {
   endChat: () => void;
   sendMessage: (text: string) => Promise<void>;
   updatePerformance: (stats: PerformanceStats) => void;
+  
+  // New Actions
+  updateCompanyStats: (stats: Partial<CompanyStats>) => void;
+  setTrainingMode: (active: boolean) => void;
+  startExercise: (exercise: TrainingExercise) => void;
+  completeExercise: (id: string) => void;
+  addWorldEvent: (event: WorldEvent) => void;
+  removeWorldEvent: (id: string) => void;
+  updateAgentXP: (index: number, xp: number) => void;
 }
 
 export enum AnimationName {
@@ -78,6 +145,7 @@ export enum AgentBehavior {
   TALK = 3,    // position locked, playing talk animation
   SIT = 4,     // sitting at a desk
   WORKOUT = 5, // exercising in the gym
+  REGISTERING = 6, // at the front desk
 }
 
 export interface ActiveEncounter {
@@ -86,6 +154,7 @@ export interface ActiveEncounter {
   npcRole: string;
   npcMission: string;
   npcPersonality: string;
+  npcStatus: string;
 }
 
 export type ExpressionKey = 'idle' | 'listening' | 'neutral' | 'surprised' | 'happy' | 'sick' | 'wink' | 'doubtful' | 'sad';

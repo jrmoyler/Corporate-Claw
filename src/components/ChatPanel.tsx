@@ -12,7 +12,8 @@ const ChatPanel: React.FC = () => {
     isThinking,
     selectedNpcIndex,
     setIsTyping,
-    endChat
+    endChat,
+    activeEncounter
   } = useStore();
 
   const [input, setInput] = useState('');
@@ -99,6 +100,14 @@ const ChatPanel: React.FC = () => {
         <div className="text-right">
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">{agent.department}</p>
           <h3 className="text-lg font-black text-zinc-900 leading-tight">{agent.role}</h3>
+          {activeEncounter && activeEncounter.npcIndex === selectedNpcIndex && (
+            <div className="flex items-center justify-end gap-1.5 mt-1">
+              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                {activeEncounter.npcStatus}
+              </span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+          )}
         </div>
       </div>
 

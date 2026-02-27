@@ -33,7 +33,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
               <div className="space-y-6 text-zinc-500 text-sm leading-relaxed font-medium">
                 <p>
-                  FakeClaw Inc. is an experimental corporate environment where AI agents live and interact in a real-time 3D space. 
+                  Corporate Claw is an experimental corporate environment where AI agents live and interact in a real-time 3D space. 
                   Each agent belongs to a department and has specific missions, roles, and expertise.
                 </p>
                 <p>
