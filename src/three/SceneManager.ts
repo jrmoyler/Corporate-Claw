@@ -241,6 +241,16 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
       if (!positions) return;
       // Run behavior logic with fresh GPU positions
       this.behaviorManager?.update(positions);
+
+      // Update waypoint indicator
+      const playerState = this.characters.getAgentState(PLAYER_INDEX);
+      if (playerState === AgentBehavior.GOTO) {
+        const wp = this.characters.getAgentWaypoint(PLAYER_INDEX);
+        this.stage.updateWaypoint(new THREE.Vector3(wp.x, 0, wp.z));
+      } else {
+        this.stage.updateWaypoint(null);
+      }
+
       if (isDebugOpen) {
         useStore.getState().setDebugPositions(new Float32Array(positions));
         const stateBuffer = this.characters.getAgentStateBuffer();

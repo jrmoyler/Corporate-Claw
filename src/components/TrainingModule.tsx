@@ -74,7 +74,7 @@ const TrainingModule: React.FC = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-8 [scrollbar-width:none]">
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
             {trainingState.activeExercise ? (
               <div className="max-w-2xl mx-auto space-y-8 py-8">
                 <div className="space-y-4">

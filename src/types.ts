@@ -146,6 +146,7 @@ export enum AgentBehavior {
   SIT = 4,     // sitting at a desk
   WORKOUT = 5, // exercising in the gym
   REGISTERING = 6, // at the front desk
+  OFFLINE = 7,     // agent has left the office
 }
 
 export interface ActiveEncounter {

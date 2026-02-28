@@ -30,6 +30,7 @@ import { AgentStateBuffer } from '../behavior/AgentStateBuffer';
 import { ExpressionBuffer } from '../behavior/ExpressionBuffer';
 import { AGENTS, PLAYER_INDEX } from '../../data/agents';
 import { PHYSICAL_OBSTACLES } from '../../data/officeLayout';
+import { TalkIndicator } from './TalkIndicator';
 
 export class CharacterManager {
   private instanceCount = 100;
@@ -52,6 +53,7 @@ export class CharacterManager {
 
   // Expression buffer (CPU+GPU): eye and mouth UV offsets per instance
   private expressionBuffer: ExpressionBuffer | null = null;
+  private talkIndicator: TalkIndicator | null = null;
 
   // CPU-side mirror of GPU positions (updated via GPU readback each frame)
   private debugPosArray: Float32Array | null = null;
@@ -204,6 +206,10 @@ export class CharacterManager {
     this.instancedMeshes = [];
     this.computeNode = null;
     this.expressionBuffer = null;
+    if (this.talkIndicator) {
+      this.talkIndicator.dispose();
+      this.talkIndicator = null;
+    }
   }
 
   private initInstances() {
@@ -271,9 +277,12 @@ export class CharacterManager {
     this.agentStateBuffer.setState(PLAYER_INDEX, AgentBehavior.FROZEN);
 
     this.expressionBuffer = new ExpressionBuffer(this.instanceCount);
+    this.talkIndicator = new TalkIndicator(this.scene, this.instanceCount);
 
     this.initComputeNode();
     this.createInstancedMesh();
+    
+    this.talkIndicator.setBuffers(this.agentStateBuffer.storageNode, this.positionStorage);
   }
 
   private initComputeNode() {
@@ -296,7 +305,8 @@ export class CharacterManager {
       const isTalk = agentState.greaterThan(float(2.5)).and(agentState.lessThan(float(3.5)));
       const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
       const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
-      const isRegistering = agentState.greaterThan(float(5.5));
+      const isRegistering = agentState.greaterThan(float(5.5)).and(agentState.lessThan(float(6.5)));
+      const isOffline = agentState.greaterThan(float(6.5));
 
       If(isGoto, () => {
         const waypointXZ = vec3(agentData.x, float(0), agentData.z);
@@ -376,6 +386,9 @@ export class CharacterManager {
 
         velElement.assign(vec4(newVel, 0.0));
         posElement.assign(vec4(nextPos, 1.0));
+      }).ElseIf(isOffline, () => {
+        // OFFLINE — teleport far away or just stay at door
+        posElement.assign(vec4(0, -100, 0, 1.0)); 
       }).Else(() => {
         // FROZEN, TALK, SIT, WORKOUT — hold position
         const facing = vec3(agentData.x, float(0), agentData.z);
@@ -501,7 +514,8 @@ export class CharacterManager {
         const isTalk = agentState.greaterThan(float(2.5)).and(agentState.lessThan(float(3.5)));
         const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
         const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
-        const isRegistering = agentState.greaterThan(float(5.5));
+        const isRegistering = agentState.greaterThan(float(5.5)).and(agentState.lessThan(float(6.5)));
+        const isOffline = agentState.greaterThan(float(6.5));
 
         const buildSkinMat = (animBuf: any, numFrames: number, duration: number, speedMult: any = float(1.0)) => {
           const animTime = time.add(timeOffset).mul(speedMult);
@@ -531,6 +545,11 @@ export class CharacterManager {
         });
 
         finalPosition.assign(skinMat.mul(vec4(positionLocal, 1.0)).xyz);
+
+        // Scale to 0 if offline
+        If(isOffline, () => {
+          finalPosition.assign(vec3(0));
+        });
       }
 
       return rotationMat.mul(finalPosition).add(instancePos);
@@ -585,6 +604,11 @@ export class CharacterManager {
   public getAgentState(index: number): number {
     if (!this.agentStateBuffer || index < 0 || index >= this.instanceCount) return 0;
     return this.agentStateBuffer.getState(index);
+  }
+
+  public getAgentWaypoint(index: number): { x: number; z: number } {
+    if (!this.agentStateBuffer || index < 0 || index >= this.instanceCount) return { x: 0, z: 0 };
+    return this.agentStateBuffer.getWaypoint(index);
   }
 
   public setExpression(index: number, name: ExpressionKey) {

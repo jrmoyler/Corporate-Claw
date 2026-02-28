@@ -58,7 +58,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-8 space-y-8 [scrollbar-width:none]">
+          <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {[

@@ -91,7 +91,7 @@ export class BehaviorManager {
     }
 
     let behavior: AgentBehavior = AgentBehavior.BOIDS;
-    let slotType: FurnitureSlot['type'] | null = null;
+    let slotType: FurnitureSlot['type'] | 'OFFLINE' | null = null;
     let targetPos: THREE.Vector3;
     let targetRotation: number;
     let slotId: string | null = null;
@@ -122,7 +122,10 @@ export class BehaviorManager {
       }
     } else {
       // Decision Making based on Needs
-      if (needs.energy < 0.3) {
+      if (needs.energy < 0.1) {
+        slotType = 'OFFLINE';
+        behavior = AgentBehavior.OFFLINE;
+      } else if (needs.energy < 0.3) {
         slotType = Math.random() > 0.5 ? 'COFFEE_MACHINE' : 'CAFE_TABLE';
         behavior = slotType === 'COFFEE_MACHINE' ? AgentBehavior.FROZEN : AgentBehavior.TALK;
       } else if (needs.focus < 0.3) {
@@ -134,7 +137,12 @@ export class BehaviorManager {
       } else {
         // Default department-based behavior
         const rand = Math.random();
-        if (rand < 0.15) {
+        
+        // 5% chance to go offline if needs are okay
+        if (rand < 0.05) {
+          slotType = 'OFFLINE';
+          behavior = AgentBehavior.OFFLINE;
+        } else if (rand < 0.15) {
           slotType = 'TREADMILL';
           behavior = AgentBehavior.WORKOUT;
         } else if (agent.department === 'Production' || agent.department === 'Finance') {
@@ -165,6 +173,11 @@ export class BehaviorManager {
         targetRotation = slot.rotation;
         slotId = slot.id;
         this.occupiedSlots.add(slotId);
+      } else if (slotType === 'OFFLINE') {
+        targetPos = new THREE.Vector3(0, 0, 31); // The glass door
+        targetRotation = 0;
+        slotId = 'offline-exit';
+        behavior = AgentBehavior.OFFLINE;
       } else {
         // Fallback to random wandering if no slots available
         targetPos = new THREE.Vector3((Math.random() - 0.5) * 40, 0, (Math.random() - 0.5) * 40);
@@ -410,12 +423,27 @@ export class BehaviorManager {
         const pdx = task.targetPos.x - positions[i * 4];
         const pdz = task.targetPos.z - positions[i * 4 + 2];
         if (pdx * pdx + pdz * pdz < PLAYER_ARRIVAL_RADIUS * PLAYER_ARRIVAL_RADIUS) {
-          // Snap to exact slot position and orientation
-          this.stateBuffer.setState(i, task.behavior);
-          const fx = Math.sin(task.targetRotation);
-          const fz = Math.cos(task.targetRotation);
-          this.stateBuffer.setWaypoint(i, fx, fz);
+          // If going offline, once reached door, switch to final OFFLINE state (hidden)
+          if (task.behavior === AgentBehavior.OFFLINE) {
+             this.stateBuffer.setState(i, AgentBehavior.OFFLINE);
+          } else {
+            // Snap to exact slot position and orientation
+            this.stateBuffer.setState(i, task.behavior);
+            const fx = Math.sin(task.targetRotation);
+            const fz = Math.cos(task.targetRotation);
+            this.stateBuffer.setWaypoint(i, fx, fz);
+          }
         }
+      }
+
+      // Respawn offline agents
+      if (currentState === AgentBehavior.OFFLINE && now > task.expiresAt) {
+          // Teleport back to door and start registration or boids
+          this.stateBuffer.setWaypoint(i, 0, 30); // Just inside door
+          this.agentRegistered.set(i, false); // Need to register again
+          this.agentNeeds.set(i, { energy: 1, focus: 1, social: 1 });
+          this.assignNewTask(i);
+          continue;
       }
 
       if (now > task.expiresAt && !this.frozenIndices.has(i)) {

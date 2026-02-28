@@ -18,6 +18,7 @@ export class Stage {
 
   private fans: THREE.Group[] = [];
   private screens: THREE.Mesh[] = [];
+  private waypointIndicator: THREE.Mesh | null = null;
 
   constructor(rendererElement: HTMLElement) {
     this.scene = new THREE.Scene();
@@ -53,12 +54,12 @@ export class Stage {
   }
 
   private setupLights() {
-    // Global soft ambient - Warmer
-    const ambientLight = new THREE.AmbientLight(0xfff4e0, 0.5 * Math.PI);
+    // Global soft ambient - Very subtle for mood
+    const ambientLight = new THREE.AmbientLight(0xfff4e0, 0.2 * Math.PI);
     this.scene.add(ambientLight);
 
-    // Main directional light (Sun/Sky) - Warmer
-    const dirLight = new THREE.DirectionalLight(0xfff8e1, 1.0 * Math.PI);
+    // Main directional light (Sun/Sky) - Softened
+    const dirLight = new THREE.DirectionalLight(0xfff8e1, 0.8 * Math.PI);
     dirLight.position.set(50, 60, 50);
     dirLight.castShadow = true;
     dirLight.shadow.camera.near = 1;
@@ -75,9 +76,9 @@ export class Stage {
     const gridSpacing = 15;
     for (let x = -22.5; x <= 22.5; x += gridSpacing) {
       for (let z = -22.5; z <= 22.5; z += gridSpacing) {
-        const pLight = new THREE.PointLight(0xfff4e0, 120, 40);
+        const pLight = new THREE.PointLight(0xfff4e0, 80, 35); // Reduced intensity and range
         pLight.position.set(x, 11, z);
-        pLight.decay = 2;
+        pLight.decay = 2.5;
         this.scene.add(pLight);
         
         // Visual light fixture
@@ -459,9 +460,9 @@ export class Stage {
     const windowMat = new THREE.MeshStandardNodeMaterial({ 
       color: 0x87ceeb, 
       emissive: 0x87ceeb, 
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.2, // Reduced glow
       transparent: true,
-      opacity: 0.8
+      opacity: 0.4 // More transparent
     });
     
     for (let z = -20; z <= 20; z += 20) {
@@ -937,6 +938,28 @@ export class Stage {
     this.environmentGroup.add(points);
   }
 
+  public updateWaypoint(pos: THREE.Vector3 | null) {
+    if (!this.waypointIndicator) {
+      const geo = new THREE.RingGeometry(0.4, 0.5, 32);
+      geo.rotateX(-Math.PI / 2);
+      const mat = new THREE.MeshBasicNodeMaterial({ 
+        color: 0x7EACEA, 
+        transparent: true, 
+        opacity: 0.8 
+      });
+      this.waypointIndicator = new THREE.Mesh(geo, mat);
+      this.scene.add(this.waypointIndicator);
+    }
+
+    if (pos) {
+      this.waypointIndicator.position.copy(pos);
+      this.waypointIndicator.position.y = 0.05;
+      this.waypointIndicator.visible = true;
+    } else {
+      this.waypointIndicator.visible = false;
+    }
+  }
+
   public onResize(width: number, height: number) {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
@@ -963,5 +986,11 @@ export class Stage {
       const intensity = 0.4 + Math.sin(time * 2 + i) * 0.1;
       (screen.material as any).emissiveIntensity = intensity;
     });
+
+    if (this.waypointIndicator && this.waypointIndicator.visible) {
+      this.waypointIndicator.rotation.z += 0.05;
+      const s = 1.0 + Math.sin(Date.now() * 0.01) * 0.1;
+      this.waypointIndicator.scale.set(s, s, s);
+    }
   }
 }
