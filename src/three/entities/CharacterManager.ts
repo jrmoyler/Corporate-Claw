@@ -31,6 +31,8 @@ import { ExpressionBuffer } from '../behavior/ExpressionBuffer';
 import { AGENTS, PLAYER_INDEX } from '../../data/agents';
 import { PHYSICAL_OBSTACLES } from '../../data/officeLayout';
 import { TalkIndicator } from './TalkIndicator';
+import { CPUAgentRenderer } from './CPUAgentRenderer';
+import { stepCPUAgents } from '../behavior/cpuMovement';
 
 export class CharacterManager {
   private instanceCount = 100;
@@ -87,14 +89,22 @@ export class CharacterManager {
   private worldSize = 20.0;
 
   public isLoaded = false;
+  private cpuMode = false;
+  private sourceModel: THREE.Object3D | null = null;
+  private sourceClips: THREE.AnimationClip[] = [];
+  private cpuRenderer: CPUAgentRenderer | null = null;
+  private cpuVelocities: Float32Array | null = null;
 
   constructor(private scene: THREE.Scene) {}
 
-  public async load() {
+  public async load(useGPU = true) {
+    this.cpuMode = !useGPU;
     const loader = new GLTFLoader();
     try {
       const gltf = await loader.loadAsync('/models/character.glb');
       const model = gltf.scene;
+      this.sourceModel = model;
+      this.sourceClips = gltf.animations;
 
       const skinnedMeshes: THREE.SkinnedMesh[] = [];
       model.traverse((child) => {
@@ -103,9 +113,9 @@ export class CharacterManager {
         }
       });
 
-      const walkClip = gltf.animations[2];
-      const talkClip = gltf.animations[1];
-      const idleClip = gltf.animations[0];
+      const walkClip = gltf.animations.find(clip => /^walk$/i.test(clip.name)) ?? gltf.animations[2];
+      const talkClip = gltf.animations.find(clip => /^talk$/i.test(clip.name)) ?? gltf.animations[1];
+      const idleClip = gltf.animations.find(clip => /^idle$/i.test(clip.name)) ?? gltf.animations[0];
       if (skinnedMeshes.length === 0 || !walkClip) throw new Error("Character rig or walk animation is missing.");
 
       this.meshData = skinnedMeshes.map(m => ({
@@ -113,6 +123,12 @@ export class CharacterManager {
         geometry: m.geometry,
         material: m.material as THREE.MeshStandardMaterial
       }));
+
+      if (this.cpuMode) {
+        this.initInstances();
+        this.isLoaded = true;
+        return;
+      }
 
       const firstMesh = skinnedMeshes[0];
 
@@ -181,6 +197,7 @@ export class CharacterManager {
    * Returns the updated positions (1-frame GPU lag).
    */
   public async syncFromGPU(renderer: any): Promise<Float32Array | null> {
+    if (this.cpuMode) return this.debugPosArray;
     if (!this.posAttribute) return null;
     try {
       const attribute = this.posAttribute;
@@ -198,6 +215,14 @@ export class CharacterManager {
     if (this.expressionBuffer) {
       this.expressionBuffer.update(delta);
     }
+    if (this.cpuMode && this.debugPosArray && this.cpuVelocities && this.agentStateBuffer && this.expressionBuffer) {
+      stepCPUAgents(this.debugPosArray, this.cpuVelocities, this.agentStateBuffer.array, delta, {
+        speed: this.uSpeed.value, worldSize: this.worldSize,
+        separationRadius: this.uSeparationRadius.value, separationStrength: this.uSeparationStrength.value,
+      }, PHYSICAL_OBSTACLES);
+      this.cpuRenderer?.update(delta, this.debugPosArray, this.cpuVelocities, this.agentStateBuffer.array, this.expressionBuffer.array);
+      return;
+    }
     if (this.computeNode) {
       renderer.compute(this.computeNode);
     }
@@ -206,6 +231,9 @@ export class CharacterManager {
   public dispose() { this.cleanupInstances(); }
 
   private cleanupInstances() {
+    this.cpuRenderer?.dispose();
+    this.cpuRenderer = null;
+    this.cpuVelocities = null;
     for (const mesh of this.instancedMeshes) {
       this.scene.remove(mesh);
       mesh.geometry.dispose();
@@ -258,6 +286,16 @@ export class CharacterManager {
     }
 
     this.debugPosArray = new Float32Array(posArray);
+
+    if (this.cpuMode && this.sourceModel) {
+      this.cpuVelocities = velArray;
+      this.agentStateBuffer = new AgentStateBuffer(this.instanceCount);
+      this.agentStateBuffer.setState(PLAYER_INDEX, AgentBehavior.FROZEN);
+      this.expressionBuffer = new ExpressionBuffer(this.instanceCount);
+      this.cpuRenderer = new CPUAgentRenderer(this.scene, this.sourceModel, this.sourceClips, this.instanceCount, this.colors);
+      this.cpuRenderer.update(0, this.debugPosArray, velArray, this.agentStateBuffer.array, this.expressionBuffer.array);
+      return;
+    }
 
     this.posAttribute = new THREE.StorageInstancedBufferAttribute(posArray, 4);
     this.velAttribute = new THREE.StorageInstancedBufferAttribute(velArray, 4);
