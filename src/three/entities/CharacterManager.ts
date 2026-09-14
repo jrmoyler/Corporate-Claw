@@ -145,7 +145,7 @@ export class CharacterManager {
       this.initInstances();
       this.isLoaded = true;
     } catch (err) {
-      console.error("Failed to load character:", err);
+      throw new Error("The character model could not load. Please reload to retry.");
     }
   }
 
@@ -199,9 +199,14 @@ export class CharacterManager {
     }
   }
 
+  public dispose() { this.cleanupInstances(); }
+
   private cleanupInstances() {
     for (const mesh of this.instancedMeshes) {
       this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach(material => material.dispose());
     }
     this.instancedMeshes = [];
     this.computeNode = null;

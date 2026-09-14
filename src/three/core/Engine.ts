@@ -7,7 +7,7 @@ export class Engine {
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGPURenderer({ antialias: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     
     // Use default shadow map (PCF) as VSM support in WebGPU/NodeMaterial can be sensitive
@@ -21,7 +21,7 @@ export class Engine {
     try {
       await this.renderer.init();
     } catch (e) {
-      console.error("WebGPU initialization failed:", e);
+      throw new Error("Your browser could not start the 3D renderer. Enable hardware acceleration and reload.");
     }
   }
 
@@ -34,6 +34,8 @@ export class Engine {
   }
 
   public dispose() {
+    this.renderer.setAnimationLoop(null);
     this.renderer.dispose();
+    this.renderer.domElement.remove();
   }
 }

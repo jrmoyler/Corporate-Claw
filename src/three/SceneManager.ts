@@ -24,11 +24,17 @@ export class SceneManager {
   private unsubs: (() => void)[] = [];
   private isDisposed = false;
 
-  constructor(container: HTMLElement) {
+  private resizeHandler = () => this.onResize();
+  private readbackPending = false;
+  private chatGeneration = 0;
+  public paused = false;
+  public ready: Promise<void>;
+
+  constructor(private container: HTMLElement) {
     this.engine = new Engine(container);
     this.stage = new Stage(this.engine.renderer.domElement);
     this.characters = new CharacterManager(this.stage.scene);
-    this.init();
+    this.ready = this.init();
   }
 
   private async init() {
@@ -46,7 +52,8 @@ export class SceneManager {
     this.stage.updateDimensions(state.worldSize);
 
     this.engine.renderer.setAnimationLoop(this.animate.bind(this));
-    window.addEventListener('resize', this.onResize.bind(this));
+    window.addEventListener('resize', this.resizeHandler);
+    this.onResize();
 
     const stateBuffer = this.characters.getAgentStateBuffer();
     if (stateBuffer) {
@@ -164,8 +171,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
           setTimeout(() => this.characters.fadeToAction('Idle'), 2000);
 
         } catch (error) {
-          console.error("Gemini Error:", error);
-          useStore.setState({ isThinking: false });
+          useStore.setState((s) => ({ isThinking: false, chatMessages: [...s.chatMessages, { role: 'model', text: error instanceof Error ? error.message : 'Chat unavailable.', timestamp }] }));
         }
       }
     });
@@ -218,15 +224,17 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
   }
 
   private onResize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
     this.engine.onResize(w, h);
     this.stage.onResize(w, h);
   }
 
   private animate() {
     this.engine.timer.update();
-    const delta = this.engine.timer.getDelta();
+    const delta = Math.min(this.engine.timer.getDelta(), 0.05);
+    if (document.hidden) return;
+    if (this.paused) { this.stage.update(); this.engine.render(this.stage.scene, this.stage.camera); return; }
     const time = this.engine.timer.getElapsed();
 
     this.stage.update();
@@ -237,8 +245,10 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
     // 2. GPU → CPU readback (async, 1-frame lag). Keeps debugPosArray in sync with the compute shader.
     //    Used for picking, camera follow, and the debug canvas/markers.
     const { isDebugOpen } = useStore.getState();
+    if (!this.readbackPending) {
+    this.readbackPending = true;
     this.characters.syncFromGPU(this.engine.renderer).then((positions) => {
-      if (!positions) return;
+      if (!positions || this.isDisposed) return;
       // Run behavior logic with fresh GPU positions
       this.behaviorManager?.update(positions);
 
@@ -258,11 +268,12 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
           useStore.getState().setDebugStates(new Float32Array(stateBuffer.array));
         }
       }
-    });
+    }).finally(() => { this.readbackPending = false; });
+    }
 
     // 3. Camera follow: NPC if one is selected, otherwise always follow the player
     const { isChatting, selectedNpcIndex, setSelectedPosition, activeEvents } = useStore.getState();
-    const followIdx = this.selectedIndex ?? PLAYER_INDEX;
+    const followIdx = selectedNpcIndex ?? PLAYER_INDEX;
     const pos = this.characters.getCPUPosition(followIdx);
     this.stage.setFollowTarget(pos);
 
@@ -347,7 +358,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
       setTimeout(() => this.characters.fadeToAction('Idle'), 2000);
     } catch (error) {
       console.error("Auto-presentation error:", error);
-      useStore.setState({ isThinking: false });
+      useStore.setState({ isThinking: false, chatMessages: [{ role: 'model', text: error instanceof Error ? error.message : 'Chat unavailable.', timestamp: '' }] });
     }
   }
 
@@ -372,11 +383,19 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
     }
   }
 
+  public resetView() {
+    this.stage.camera.position.set(42, 44, 48);
+    useStore.getState().setSelectedNpc(null);
+    this.stage.controls.target.set(0, 0, 0);
+  }
+
   public dispose() {
     this.isDisposed = true;
     this.unsubs.forEach(unsub => unsub());
-    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('resize', this.resizeHandler);
     this.inputManager?.dispose();
+    this.characters.dispose();
+    this.stage.dispose();
     this.engine.dispose();
     if (this.stage.controls) this.stage.controls.dispose();
   }

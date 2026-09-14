@@ -1,299 +1,46 @@
-
-import React, { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useStore } from '../store/useStore';
-import DebugPanel from './DebugPanel';
-import HelpModal from './HelpModal';
+import { AGENTS } from '../data/agents';
+import { Search, ChevronRight, X, Users, RotateCcw, Play, Pause, Armchair, SlidersHorizontal } from 'lucide-react';
 import ChatPanel from './ChatPanel';
+import HelpModal from './HelpModal';
 import Dashboard from './Dashboard';
 import TrainingModule from './TrainingModule';
+import DebugPanel from './DebugPanel';
 import WorldEvents from './WorldEvents';
-import { AGENTS } from '../data/agents';
-import { HelpCircle, BarChart2, GraduationCap, Trophy, Star } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+const FurnishingViewer = lazy(() => import('./FurnishingViewer'));
 
-const UIOverlay: React.FC = () => {
-  const { 
-    isThinking, 
-    isDebugOpen, 
-    toggleDebug, 
-    isDashboardOpen,
-    toggleDashboard,
-    trainingState,
-    setTrainingMode,
-    selectedNpcIndex,
-    selectedPosition,
-    hoveredNpcIndex,
-    hoverPosition,
-    startChat,
-    endChat,
-    isChatting,
-    agentProgressions
-  } = useStore();
-  const [isHelpOpen, setHelpOpen] = useState(false);
-  const [showBranding, setShowBranding] = useState(true);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => setShowBranding(false), 5000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const selectedAgent = selectedNpcIndex != null ? AGENTS[selectedNpcIndex] ?? null : null;
-  const hoveredAgent = hoveredNpcIndex != null ? AGENTS[hoveredNpcIndex] ?? null : null;
-  const activeEncounter = useStore((state) => state.activeEncounter);
-
-  const handleStartChat = () => {
-    if (selectedNpcIndex !== null) {
-      startChat(selectedNpcIndex);
-    }
-  };
-
-  const handleEndChat = () => {
-    endChat();
-  };
-
-  return (
-    <div className="fixed inset-0 pointer-events-none flex flex-col justify-between p-8">
-      <AnimatePresence>
-        <ChatPanel />
-      </AnimatePresence>
-      {/* Selected Bubble (Always visible when selected) */}
-      {selectedAgent && selectedPosition && (
-        <div 
-          className="absolute z-10 pointer-events-none transition-all duration-75 ease-out"
-          style={{ 
-            left: selectedPosition.x, 
-            top: selectedPosition.y,
-            transform: 'translate(-50%, -100%) translateY(-10px)'
-          }}
-        >
-          <div className="bg-zinc-800/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-xl flex items-center gap-2 whitespace-nowrap animate-in fade-in zoom-in-95 duration-200">
-            <div 
-              className="w-2 h-2 rounded-full shrink-0" 
-              style={{ backgroundColor: selectedAgent.color }}
-            />
-            <div className="flex items-center gap-1.5">
-              {selectedAgent.isPlayer ? (
-                <span className="text-[10px] font-black uppercase tracking-widest text-white">CEO (You)</span>
-              ) : (
-                <>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                    {selectedAgent.role}
-                  </span>
-                  <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">·</span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/70">
-                    {selectedAgent.department}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Hover Bubble */}
-      {hoveredAgent && hoverPosition && hoveredNpcIndex !== selectedNpcIndex && (
-        <div 
-          className="absolute z-10 pointer-events-none transition-all duration-75 ease-out"
-          style={{ 
-            left: hoverPosition.x, 
-            top: hoverPosition.y,
-            transform: 'translate(-50%, -100%) translateY(-10px)'
-          }}
-        >
-          <div className="bg-zinc-800/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-xl flex items-center gap-2 whitespace-nowrap animate-in fade-in zoom-in-95 duration-200">
-            <div 
-              className="w-2 h-2 rounded-full shrink-0" 
-              style={{ backgroundColor: hoveredAgent.color }}
-            />
-            <div className="flex items-center gap-1.5">
-              {hoveredAgent.isPlayer ? (
-                <span className="text-[10px] font-black uppercase tracking-widest text-white">CEO (You)</span>
-              ) : (
-                <>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                    {hoveredAgent.role}
-                  </span>
-                  <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">·</span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/70">
-                    {hoveredAgent.department}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Top Header */}
-      {!isChatting && (
-        <div className="flex justify-between items-start relative z-30 animate-in fade-in slide-in-from-top-4 duration-500">
-          <AnimatePresence>
-            {showBranding && (
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="bg-white p-6 rounded-[32px] border border-black/5 shadow-xl max-w-[340px] pointer-events-auto flex gap-4"
-              >
-                <div className="w-2.5 h-10 bg-[#7EACEA] rounded-full shrink-0 mt-1" />
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h1 className="text-2xl font-black text-zinc-900 tracking-tight uppercase">Corporate Claw</h1>
-                    <button
-                      onClick={() => setHelpOpen(true)}
-                      className="text-zinc-300 hover:text-zinc-500 transition-colors"
-                    >
-                      <HelpCircle size={22} strokeWidth={2} />
-                    </button>
-                  </div>
-                  <p className="text-[13px] text-zinc-400 font-medium leading-snug">
-                    Autonomous corporate agent simulation powered by <a href="https://threejs.org" target="_blank" rel="noopener noreferrer" className="underline decoration-zinc-300 underline-offset-2 hover:text-zinc-600">three.js</a> WebGPU renderer
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="flex-1" />
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 pointer-events-auto">
-            <button
-              onClick={() => setTrainingMode(true)}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 border flex items-center gap-2 ${
-                trainingState.isTrainingMode
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg'
-                : 'bg-white/80 text-zinc-500 border-black/5 hover:bg-white hover:text-indigo-600'
-              }`}
-            >
-              <GraduationCap size={16} />
-              Training
-            </button>
-
-            <button
-              onClick={toggleDashboard}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 border flex items-center gap-2 ${
-                isDashboardOpen
-                ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg'
-                : 'bg-white/80 text-zinc-500 border-black/5 hover:bg-white hover:text-zinc-900'
-              }`}
-            >
-              <BarChart2 size={16} />
-              Dashboard
-            </button>
-
-            <button
-              onClick={toggleDebug}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 border ${
-                isDebugOpen
-                ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg'
-                : 'bg-white/80 text-zinc-500 border-black/5 hover:bg-white hover:text-zinc-900'
-              }`}
-            >
-              {isDebugOpen ? 'Close Debug' : 'Debug'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Panels Mount */}
-      <DebugPanel />
-      <Dashboard />
-      <TrainingModule />
-      <WorldEvents />
-
-      {/* Help Modal */}
-      <HelpModal isOpen={isHelpOpen} onClose={() => setHelpOpen(false)} />
-
-      {/* NPC Info Panel — shown when an NPC is selected */}
-      {selectedAgent && !isChatting && (
-        <div className="absolute bottom-8 left-8 w-72 bg-white/85 backdrop-blur-2xl rounded-2xl border border-black/5 shadow-2xl p-5 pointer-events-auto animate-in fade-in slide-in-from-left-4 duration-300 z-30 overflow-hidden">
-          {/* Color accent bar */}
-          <div 
-            className="absolute top-0 left-0 w-full h-1" 
-            style={{ backgroundColor: selectedAgent.color }}
-          />
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-0.5">
-                {selectedAgent.department}
-              </p>
-              <h2 className="text-xl font-black text-zinc-900 leading-tight">{selectedAgent.role}</h2>
-              {activeEncounter && activeEncounter.npcIndex === selectedNpcIndex && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
-                    {activeEncounter.npcStatus}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <p className="text-xs text-zinc-600 leading-relaxed mb-3 italic">
-            "{selectedAgent.mission}"
-          </p>
-
-          <div className="flex flex-wrap gap-1 mb-3">
-            {selectedAgent.expertise.map((tag) => (
-              <span key={tag} className="text-[10px] font-bold bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          <p className="text-[11px] text-zinc-400 leading-snug mb-5">{selectedAgent.personality}</p>
-
-          {/* Progression Stats */}
-          {agentProgressions[selectedNpcIndex] && (
-            <div className="mb-5 bg-zinc-50 rounded-xl p-3 border border-zinc-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
-                  <Trophy size={16} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Level</p>
-                  <p className="text-sm font-black text-zinc-900">{agentProgressions[selectedNpcIndex].level}</p>
-                </div>
-              </div>
-              <div className="flex-1 ml-4">
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">XP</p>
-                  <p className="text-[10px] font-black text-zinc-900 uppercase tracking-widest">
-                    {Math.floor(agentProgressions[selectedNpcIndex].xp % 100)} / 100
-                  </p>
-                </div>
-                <div className="h-1 w-full bg-zinc-200 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${agentProgressions[selectedNpcIndex].xp % 100}%` }}
-                    className="h-full bg-amber-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {isChatting ? (
-            <button
-              onClick={handleEndChat}
-              style={{ backgroundColor: selectedAgent.color }}
-              className="w-full py-3 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:brightness-90 active:scale-[0.98] transition-all shadow-lg pointer-events-auto"
-            >
-              End Chat
-            </button>
-          ) : (
-            <button
-              onClick={handleStartChat}
-              className="w-full py-3 bg-zinc-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-black active:scale-[0.98] transition-all shadow-lg shadow-zinc-200 pointer-events-auto"
-            >
-              Start Chat
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default UIOverlay;
+type Props = { ready: boolean; paused: boolean; onPause: () => void; onReset: () => void };
+export default function UIOverlay({ ready, paused, onPause, onReset }: Props) {
+  const state = useStore();
+  const [search, setSearch] = useState('');
+  const [department, setDepartment] = useState('All departments');
+  const [help, setHelp] = useState(false);
+  const [team, setTeam] = useState(false);
+  const [furnishing, setFurnishing] = useState(false);
+  const selected = state.selectedNpcIndex !== null ? AGENTS[state.selectedNpcIndex] : null;
+  const agents = AGENTS.slice(0, state.instanceCount).filter(a => (department === 'All departments' || a.department === department) && `${a.role} ${a.department} ${a.expertise.join(' ')}`.toLowerCase().includes(search.toLowerCase()));
+  const closePanels = () => { useStore.setState({ isDashboardOpen: false, isDebugOpen: false }); state.setTrainingMode(false); setHelp(false); setFurnishing(false); };
+  return <>
+    <header className="workspace-header"><h1>Corporate Claw<span>Living office</span></h1><nav aria-label="Main navigation">
+      <button className={!state.isDashboardOpen && !state.trainingState.isTrainingMode ? 'active' : ''} onClick={closePanels}>Office</button>
+      <button className={state.isDashboardOpen ? 'active' : ''} onClick={() => { closePanels(); state.toggleDashboard(); }}>Dashboard</button>
+      <button className={state.trainingState.isTrainingMode ? 'active' : ''} onClick={() => { closePanels(); state.setTrainingMode(true); }}>Training</button>
+      <button onClick={() => setHelp(true)}>Help</button>
+    </nav></header>
+    <button className="team-toggle" onClick={() => setTeam(!team)} aria-expanded={team}><Users size={17} /> Your team</button>
+    <aside className={`team-sidebar ${team ? 'mobile-open' : ''}`} aria-label="Agent directory">
+      <div className="sidebar-heading"><h2>Your team</h2><span>{state.instanceCount}</span></div>
+      <label className="agent-search"><Search size={17}/><input aria-label="Search agents" placeholder="Search agents…" value={search} onChange={e => setSearch(e.target.value)} /></label>
+      <select aria-label="Filter department" value={department} onChange={e => setDepartment(e.target.value)}><option>All departments</option>{[...new Set(AGENTS.slice(0, state.instanceCount).map(a => a.department))].map(d => <option key={d}>{d}</option>)}</select>
+      <div className="agent-list">{agents.map(a => <button disabled={!ready} key={a.index} className={`agent-row ${state.selectedNpcIndex === a.index ? 'selected' : ''}`} onClick={() => { state.endChat(); state.setSelectedNpc(a.isPlayer ? null : a.index); setTeam(false); }}>
+        <span className="agent-avatar" style={{ background: a.color }}>{a.role.split(' ').map(w => w[0]).slice(0,2).join('')}</span><span><strong>{a.isPlayer ? 'CEO · You' : a.role}</strong><small>{a.department}</small></span><ChevronRight size={15}/>
+      </button>)}{!agents.length && <p className="empty-state">No agents match your search.</p>}</div>
+      <div className="sidebar-footer"><p>Every role has a purpose.</p><span>Select a colleague to explore their mission and start a conversation.</span><button onClick={() => setFurnishing(true)}><Armchair size={17}/> Explore furnishings</button></div>
+    </aside>
+    {selected && !state.isChatting && <section className="agent-detail" aria-label="Selected agent"><button className="close-detail" aria-label="Close agent details" onClick={() => state.setSelectedNpc(null)}><X size={18}/></button><small>{selected.department}</small><h2>{selected.role}</h2><p>{selected.mission}</p><div className="expertise">{selected.expertise.map(e => <span key={e}>{e}</span>)}</div><p className="personality">{selected.personality}</p><button className="primary-button" disabled={!ready} onClick={() => state.startChat(selected.index)}>Start conversation <ChevronRight size={16}/></button></section>}
+    <footer className="simulation-toolbar"><button onClick={onPause} disabled={!ready} aria-label={paused ? 'Resume simulation' : 'Pause simulation'}>{paused ? <Play size={17}/> : <Pause size={17}/>}<span>{paused ? 'Simulation paused' : 'Live simulation'}</span></button><p>Click to move · Drag to orbit · Scroll to zoom</p><div><span className="agent-count"><Users size={16}/>{state.instanceCount} agents</span><button aria-label="Reset view" onClick={onReset}><RotateCcw size={16}/><span>Reset view</span></button><button aria-label="Simulation settings" onClick={state.toggleDebug}><SlidersHorizontal size={17}/></button></div></footer>
+    <ChatPanel/><Dashboard/><TrainingModule/><DebugPanel/><WorldEvents/><HelpModal isOpen={help} onClose={() => setHelp(false)}/>
+    {furnishing && <Suspense fallback={<div className="viewer-loading" role="status">Opening furnishing studio…</div>}><FurnishingViewer onClose={() => setFurnishing(false)}/></Suspense>}
+  </>;
+}

@@ -66,6 +66,7 @@ const TrainingModule: React.FC = () => {
               </div>
             </div>
             <button 
+              aria-label="Close training"
               onClick={handleClose}
               className="p-3 hover:bg-zinc-100 rounded-2xl transition-all text-zinc-400 hover:text-zinc-900 active:scale-90"
             >
