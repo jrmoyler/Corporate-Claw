@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# User reference remains local; do not publish the uploaded photograph.
+docs/visuals/user-office-reference.png
+docs/visuals/software-geometry-audit.png

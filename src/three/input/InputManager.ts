@@ -2,8 +2,8 @@ import * as THREE from 'three/webgpu';
 import { PLAYER_INDEX } from '../../data/agents';
 import { useStore } from '../../store/useStore';
 
-const PICK_RADIUS = 0.65; // world-space sphere radius for hit testing
-const CHARACTER_Y_OFFSET = 0.9; // approximate center height of a character
+const PICK_RADIUS = 0.8; // world-space sphere radius for hit testing
+const CHARACTER_Y_OFFSET = 1.7; // approximate center height of a character
 const DRAG_THRESHOLD_PX = 4;
 const FLOOR_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // y=0
 

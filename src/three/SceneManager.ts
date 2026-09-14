@@ -402,9 +402,9 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
   }
 
   public resetView() {
-    this.stage.camera.position.set(42, 44, 48);
+    this.stage.resetView();
     useStore.getState().setSelectedNpc(null);
-    this.stage.controls.target.set(0, 0, 0);
+
   }
 
   public dispose() {
