@@ -57,3 +57,19 @@ Vercel successfully created a Git-source preview of PR #5 after its branch was
 pushed. GitHub Actions could not start because the account is billing-locked;
 the same typecheck and tests therefore run inside the Vercel build itself.
 The new standalone Actions workflow was removed before merging.
+
+## September 14 verification — supersedes the unresolved Git-link warning above
+
+Production `corporate-claw.vercel.app` was verified through Vercel deployment
+`dpl_BXyP49GSrVxsPs9kKrzR5KnvM9XT`: `READY`, `target=production`, `source=git`,
+`githubCommitRef=main`, SHA `9d1f4535369cf21928561daa79421a5db154b48f`.
+The domain is an alias of that deployment. Main's Git commit matches exactly.
+No additional Vercel configuration change is needed to repair that deployment.
+
+The reference reconstruction replaces the office's downloaded cartoon character
+with a bundled procedural adult skeleton and Idle/Talk/Walk/Sit clips. The old
+GLB remains a historical asset; the sofa GLB still serves the furnishing viewer.
+The new rig is validated by `tests/reference.test.ts`. Both rendering backends
+now share CPU navigation around furniture and partitions; WebGPU still instances
+and skins the visible crowd on the GPU. WebGL2 retains ordinary cloned skeletons.
+Untextured skin, hair and clothes now remain opaque on the GPU path.

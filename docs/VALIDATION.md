@@ -30,3 +30,27 @@ The main 3D scene and Babylon viewer cannot be visually signed off in this envir
 - Set server-side `GEMINI_API_KEY` in Vercel and redeploy to enable live agent chat; no credential was available in this project. Live provider responses remain unverified.
 - The image2threejs exact-reference pipeline remains incomplete, as recorded in its state and reconstruction ledger. Blender asset checks are separate from exact-reference acceptance.
 - This release is directly deployed to Vercel; GitHub-to-Vercel automatic deployment is not connected by this action.
+
+## Reference reconstruction PR — current verification
+
+The previous Git-link statement is superseded by the deployment evidence in
+DEPLOYMENT.md: production is a successful Git build of main `9d1f453`.
+
+This revision replaces the room layout, adds reference-derived furnishings and
+adult suited skeletal figures, and restores the five initial department rows.
+The software geometry inspection identified and corrected camera framing,
+reception placement, lounge chair scale, living-wall planters and parquet
+orientation. It is **not** a browser screenshot, lighting acceptance, or evidence
+of identical reference fidelity. The figures' unseen anatomy and faces are inferred.
+
+Typecheck and 14 tests pass, including actual suited-mesh deformation, independent
+walking/seated clones, material opacity, clear task destinations and navigation
+around partitions. Both backends share those navigation rules. Existing chat
+boundary, crowd state and GLB preservation checks also pass.
+
+Current browser limitations: production reports WebGPU unavailable and a null
+WebGL2 context; localhost access returns ERR_BLOCKED_BY_CLIENT. Blender's Python
+package was unavailable and system installation failed under environment
+permissions. No security restrictions were changed. A software rasterization of
+actual geometry was used only for structural inspection. GPU lighting, shader
+execution, touch performance and full visual fidelity remain unverified.

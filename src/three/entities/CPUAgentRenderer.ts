@@ -18,7 +18,9 @@ export class CPUAgentRenderer {
         object.frustumCulled = false;
         const materials = (Array.isArray(object.material) ? object.material : [object.material]).map((original: THREE.MeshStandardMaterial) => {
           const material = original.clone();
-          if (object.name.toLowerCase().includes('body')) material.color.multiply(new THREE.Color(colors?.[i] ?? (AGENTS[i] || AGENTS[0]).color));
+          if (object.name === 'Suit') material.color.set(colors?.[i] ?? ['#26343f','#1e2932','#34383a','#243c39'][i % 4]);
+          if (object.name === 'Skin') material.color.set(['#bf8e6b','#81563e','#d9ad8a','#a37454'][i % 4]);
+          if (object.name === 'Hair') material.color.set(['#29231e','#48392b','#1d1a19','#71675a'][i % 4]);
           const name = object.name.toLowerCase();
           if (material.map && (name.includes('eyes') || name.includes('mouth'))) {
             material.map = material.map.clone();
@@ -30,7 +32,7 @@ export class CPUAgentRenderer {
       });
       const mixer = new THREE.AnimationMixer(root);
       const actions: Record<string, THREE.AnimationAction> = {};
-      for (const name of ['Idle', 'Talk', 'Walk']) {
+      for (const name of ['Idle', 'Talk', 'Walk', 'Sit']) {
         const clip = clips.find(c => c.name.toLowerCase() === name.toLowerCase()) ?? clips[0];
         if (clip) actions[name] = mixer.clipAction(clip);
       }
@@ -48,7 +50,7 @@ export class CPUAgentRenderer {
       agent.root.position.set(positions[k], positions[k + 1], positions[k + 2]);
       if (Math.hypot(velocities[k], velocities[k + 2]) > .001) agent.root.rotation.y = Math.atan2(velocities[k], velocities[k + 2]);
       const moving = state === AgentBehavior.BOIDS || state === AgentBehavior.WORKOUT || (state === AgentBehavior.GOTO && Math.hypot(states[k] - positions[k], states[k + 2] - positions[k + 2]) > .2);
-      const next = moving ? 'Walk' : state === AgentBehavior.TALK || state === AgentBehavior.REGISTERING ? 'Talk' : 'Idle';
+      const next = state === AgentBehavior.SIT ? 'Sit' : moving ? 'Walk' : state === AgentBehavior.TALK || state === AgentBehavior.REGISTERING ? 'Talk' : 'Idle';
       if (next !== agent.current) {
         agent.actions[agent.current]?.fadeOut(.15);
         agent.actions[next]?.reset().fadeIn(.15).play();

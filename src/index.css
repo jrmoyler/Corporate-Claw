@@ -60,3 +60,30 @@ button,input,select { font:inherit; } button { cursor:pointer; } button:disabled
 @media(max-width:600px) { .furnishing-dialog h2 { font-size:22px; } .furnishing-dialog header,.furnishing-dialog footer { padding:18px; } .furnishing-dialog footer { font-size:10px; } }
 .training-checkpoint { border:1px solid var(--line); padding:20px; } .training-checkpoint legend { font-weight:600; font-size:15px; padding:0 8px; } .training-checkpoint label { display:flex; gap:10px; align-items:baseline; padding:10px 0; font-size:13px; cursor:pointer; } .training-checkpoint p { font-size:12px; color:#426c58; margin-top:12px; }
 .recovery-actions { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; } .graphics-notice { position:absolute; inset:72px 0 54px 274px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px; text-align:center; z-index:10; background:#e5e1d7; } .graphics-notice h2 { font:30px Georgia,serif; }.graphics-notice p { font-size:13px; max-width:350px; line-height:1.7; margin:15px; color:var(--muted); }.graphics-notice button { border:1px solid var(--ink); padding:10px 18px; font-size:12px; } @media(max-width:800px) { .graphics-notice { inset:100px 0 54px; } }
+/* Reference proportions; retain the compact mobile controls below 800px. */
+@media(min-width:801px) {
+  .workspace-header { height:62px; padding:0 32px; }
+  .workspace-header h1 { font-size:40px; letter-spacing:-.7px; }
+  .workspace-header nav { gap:42px; }
+  .workspace-header nav button { font-size:16px; position:relative; border:0; }
+  .workspace-header nav button.active::after { content:''; position:absolute; height:2px; background:#e9e6de; bottom:11px; left:0; right:0; }
+  .office-canvas,.graphics-notice { inset:62px 0 88px 274px; }
+  .team-sidebar { top:62px; bottom:88px; }
+  .sidebar-heading { padding:25px 28px 22px; }
+  .sidebar-heading h2 { font-size:28px; }
+  .agent-search { padding:11px; margin-bottom:16px; }
+  .agent-search input { font-size:16px; }
+  .simulation-toolbar { height:88px; padding:0 24px; font-size:16px; }
+  .simulation-toolbar button { min-height:44px; gap:18px; }
+  .simulation-toolbar>div { gap:16px; }
+  .agent-count { padding-right:28px; margin-right:12px; border-right:1px solid #71828d; gap:14px; }
+  .agent-detail { bottom:108px; }
+}
+.department-list { padding:0 18px; }
+.department-row { display:flex; align-items:center; gap:18px; width:100%; min-height:84px; padding:15px 3px; border-top:1px solid var(--line); background:transparent; text-align:left; }
+.department-row:last-child { border-bottom:1px solid var(--line); }
+.department-row>span:nth-child(2) { flex:1; font:21px Georgia,serif; color:#111820; }
+.department-row:hover { background:#e8e4da; }
+.department-icon { display:grid; place-items:center; flex-shrink:0; width:48px; height:48px; border-radius:50%; background:#172d3e; color:#f8f6ee; }
+.department-icon.green { background:#285b50; }
+.directory-back { display:flex; align-items:center; gap:9px; margin:0 18px 6px; min-height:44px; background:none; border:0; text-align:left; font-size:13px; }

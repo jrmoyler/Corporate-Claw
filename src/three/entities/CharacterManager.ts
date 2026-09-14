@@ -1,7 +1,7 @@
 
 import * as THREE from 'three/webgpu';
 import { useStore } from '../../store/useStore';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createSuitedAgent } from './createSuitedAgent';
 import {
   Fn,
   instanceIndex,
@@ -23,6 +23,8 @@ import {
   sin,
   cos,
   uv,
+  normalLocal,
+  transformNormalToView,
   vec2
 } from 'three/tsl';
 import { BoidsParams, AgentBehavior, ExpressionKey } from '../../types';
@@ -45,11 +47,6 @@ export class CharacterManager {
   private positionStorage: any;
   private velocityStorage: any;
 
-  // Obstacles (Furniture)
-  private obstacleAttribute: THREE.StorageBufferAttribute | null = null;
-  private obstacleStorage: any;
-  private numObstacles = 0;
-
   // Agent state buffer (CPU+GPU): waypoint + behavior state per instance
   private agentStateBuffer: AgentStateBuffer | null = null;
 
@@ -61,7 +58,6 @@ export class CharacterManager {
   private debugPosArray: Float32Array | null = null;
 
   // Logic Nodes
-  private computeNode: any;
 
   // Assets & Objects
   private instancedMeshes: THREE.Mesh[] = [];
@@ -71,6 +67,9 @@ export class CharacterManager {
   // Animation Data (walk = BOIDS/GOTO, idle = FROZEN, talk = TALK)
   private bakedWalkBuffer: THREE.StorageBufferAttribute | null = null;
   private bakedIdleBuffer: THREE.StorageBufferAttribute | null = null;
+  private bakedSitBuffer: THREE.StorageBufferAttribute | null = null;
+  private numSitFrames = 0;
+  private sitDuration = 0;
   private bakedTalkBuffer: THREE.StorageBufferAttribute | null = null;
   private numWalkFrames = 0;
   private numIdleFrames = 0;
@@ -99,9 +98,9 @@ export class CharacterManager {
 
   public async load(useGPU = true) {
     this.cpuMode = !useGPU;
-    const loader = new GLTFLoader();
+
     try {
-      const gltf = await loader.loadAsync('/models/character.glb');
+      const gltf = createSuitedAgent();
       const model = gltf.scene;
       this.sourceModel = model;
       this.sourceClips = gltf.animations;
@@ -159,6 +158,11 @@ export class CharacterManager {
         this.numTalkFrames = this.numIdleFrames;
         this.talkDuration = this.idleDuration;
       }
+      const sitClip = gltf.animations.find(clip => clip.name === 'Sit')!;
+      const sitData = this.bakeAnimation(firstMesh, sitClip, model);
+      this.bakedSitBuffer = sitData.buffer;
+      this.numSitFrames = sitData.numFrames;
+      this.sitDuration = sitData.duration;
       this.initInstances();
       this.isLoaded = true;
     } catch (err) {
@@ -197,16 +201,7 @@ export class CharacterManager {
    * Returns the updated positions (1-frame GPU lag).
    */
   public async syncFromGPU(renderer: any): Promise<Float32Array | null> {
-    if (this.cpuMode) return this.debugPosArray;
-    if (!this.posAttribute) return null;
-    try {
-      const attribute = this.posAttribute;
-      const buffer = await renderer.getArrayBufferAsync(attribute);
-      if (attribute !== this.posAttribute) return null;
-      this.debugPosArray = new Float32Array(buffer);
-    } catch {
-      // WebGPU readback not available – fall back to stale data
-    }
+    // Both backends use the same obstacle-aware movement, with no readback lag.
     return this.debugPosArray;
   }
 
@@ -215,20 +210,30 @@ export class CharacterManager {
     if (this.expressionBuffer) {
       this.expressionBuffer.update(delta);
     }
-    if (this.cpuMode && this.debugPosArray && this.cpuVelocities && this.agentStateBuffer && this.expressionBuffer) {
+    if (this.debugPosArray && this.cpuVelocities && this.agentStateBuffer && this.expressionBuffer) {
       stepCPUAgents(this.debugPosArray, this.cpuVelocities, this.agentStateBuffer.array, delta, {
         speed: this.uSpeed.value, worldSize: this.worldSize,
         separationRadius: this.uSeparationRadius.value, separationStrength: this.uSeparationStrength.value,
       }, PHYSICAL_OBSTACLES);
+      if (!this.cpuMode && this.posAttribute && this.velAttribute) {
+        this.posAttribute.array.set(this.debugPosArray);
+        this.velAttribute.array.set(this.cpuVelocities);
+        this.posAttribute.needsUpdate = this.velAttribute.needsUpdate = true;
+      }
       this.cpuRenderer?.update(delta, this.debugPosArray, this.cpuVelocities, this.agentStateBuffer.array, this.expressionBuffer.array);
       return;
     }
-    if (this.computeNode) {
-      renderer.compute(this.computeNode);
-    }
+
   }
 
-  public dispose() { this.cleanupInstances(); }
+  public dispose() {
+    this.cleanupInstances();
+    const skeletons=new Set<THREE.Skeleton>();
+    this.sourceModel?.traverse((o:any)=>{if(o.skeleton)skeletons.add(o.skeleton);});
+    skeletons.forEach(s=>s.dispose());
+    this.meshData.forEach(({geometry,material})=>{geometry.dispose();material.dispose();});
+    this.meshData=[];this.sourceModel=null;
+  }
 
   private cleanupInstances() {
     this.cpuRenderer?.dispose();
@@ -241,7 +246,6 @@ export class CharacterManager {
       materials.forEach(material => material.dispose());
     }
     this.instancedMeshes = [];
-    this.computeNode = null;
     this.expressionBuffer = null;
     if (this.talkIndicator) {
       this.talkIndicator.dispose();
@@ -269,16 +273,22 @@ export class CharacterManager {
         posArray[i * 4 + 0] = 0;
         posArray[i * 4 + 2] = 0;
         posArray[i * 4 + 3] = 1;
-        tempColor.set(colorOverride);
+        tempColor.set(this.colors?.[i] ?? ['#26343f','#1e2932','#34383a','#243c39'][i % 4]);
       } else {
         posArray[i * 4 + 0] = (Math.random() - 0.5) * spawnRadius * 2;
         posArray[i * 4 + 2] = (Math.random() - 0.5) * spawnRadius * 2;
         posArray[i * 4 + 3] = 1;
         velArray[i * 4 + 0] = (Math.random() - 0.5) * 0.1;
         velArray[i * 4 + 2] = (Math.random() - 0.5) * 0.1;
-        tempColor.set(colorOverride);
+        tempColor.set(this.colors?.[i] ?? ['#26343f','#1e2932','#34383a','#243c39'][i % 4]);
       }
 
+      // Spawn in circulation space rather than inside furniture/partitions.
+      if(i !== PLAYER_INDEX)for(let attempt=0;attempt<50;attempt++){
+        if(!PHYSICAL_OBSTACLES.some(o=>Math.hypot(posArray[i*4]-o.position.x,posArray[i*4+2]-o.position.z)<o.radius+.8))break;
+        posArray[i*4]=(Math.random()-.5)*Math.min(spawnRadius,28)*2;
+        posArray[i*4+2]=(Math.random()-.5)*Math.min(spawnRadius,28)*2;
+      }
       timeOffsetArray[i] = Math.random() * 10;
       colorArray[i * 3 + 0] = tempColor.r;
       colorArray[i * 3 + 1] = tempColor.g;
@@ -286,6 +296,7 @@ export class CharacterManager {
     }
 
     this.debugPosArray = new Float32Array(posArray);
+    this.cpuVelocities = velArray;
 
     if (this.cpuMode && this.sourceModel) {
       this.cpuVelocities = velArray;
@@ -305,18 +316,6 @@ export class CharacterManager {
     this.positionStorage = storage(this.posAttribute, 'vec4', this.instanceCount);
     this.velocityStorage = storage(this.velAttribute, 'vec4', this.instanceCount);
 
-    // Obstacles
-    this.numObstacles = PHYSICAL_OBSTACLES.length;
-    const obstacleArray = new Float32Array(this.numObstacles * 4);
-    PHYSICAL_OBSTACLES.forEach((obs, i) => {
-      obstacleArray[i * 4 + 0] = obs.position.x;
-      obstacleArray[i * 4 + 1] = obs.position.y;
-      obstacleArray[i * 4 + 2] = obs.position.z;
-      obstacleArray[i * 4 + 3] = obs.radius;
-    });
-    this.obstacleAttribute = new THREE.StorageBufferAttribute(obstacleArray, 4);
-    this.obstacleStorage = storage(this.obstacleAttribute, 'vec4', this.numObstacles);
-
     // Agent state buffer — player starts FROZEN, NPCs start BOIDS (0 = default)
     // Create BEFORE initComputeNode so the storage node is ready, and set
     // needsUpdate AFTER the attribute is constructed to force the initial upload.
@@ -326,139 +325,10 @@ export class CharacterManager {
     this.expressionBuffer = new ExpressionBuffer(this.instanceCount);
     this.talkIndicator = new TalkIndicator(this.scene, this.instanceCount);
 
-    this.initComputeNode();
+
     this.createInstancedMesh();
     
     this.talkIndicator.setBuffers(this.agentStateBuffer.storageNode, this.positionStorage);
-  }
-
-  private initComputeNode() {
-    const agentStorage = this.agentStateBuffer!.storageNode;
-
-    this.computeNode = Fn(() => {
-      const index = instanceIndex;
-
-      const posElement = this.positionStorage.element(index);
-      const velElement = this.velocityStorage.element(index);
-      const agentData  = agentStorage.element(index);   // vec4: (wpX, 0, wpZ, state)
-      const agentState = agentData.w;                   // float: 0=BOIDS 1=FROZEN 2=GOTO 3=TALK 4=SIT 5=WORKOUT
-
-      const pos = posElement.xyz.toVar();
-
-      // ── Movement Logic ────────────────────────────────────────
-      const isBoids = agentState.lessThan(float(0.5));
-      const isFrozen = agentState.greaterThan(float(0.5)).and(agentState.lessThan(float(1.5)));
-      const isGoto = agentState.greaterThan(float(1.5)).and(agentState.lessThan(float(2.5)));
-      const isTalk = agentState.greaterThan(float(2.5)).and(agentState.lessThan(float(3.5)));
-      const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
-      const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
-      const isRegistering = agentState.greaterThan(float(5.5)).and(agentState.lessThan(float(6.5)));
-      const isOffline = agentState.greaterThan(float(6.5));
-
-      If(isGoto, () => {
-        const waypointXZ = vec3(agentData.x, float(0), agentData.z);
-        const toTarget = waypointXZ.sub(pos);
-        const dist = toTarget.length();
-        
-        const gotoVel = vec3(0).toVar();
-        If(dist.greaterThan(float(0.2)), () => {
-          gotoVel.assign(toTarget.normalize().mul(this.uSpeed.mul(3.0)));
-          
-          // Obstacle avoidance for GOTO
-          Loop({ start: uint(0), end: uint(this.numObstacles), type: 'uint' }, ({ i }) => {
-            const obsData = this.obstacleStorage.element(i);
-            const obsPos = obsData.xyz;
-            const obsRadius = obsData.w;
-            const diff = pos.sub(obsPos);
-            const d = diff.length();
-            If(d.lessThan(obsRadius.add(float(0.4))), () => {
-              const pushForce = diff.normalize().mul(this.uSpeed.mul(2.0));
-              gotoVel.addAssign(pushForce);
-            });
-          });
-          
-          velElement.assign(vec4(gotoVel, 0.0));
-          posElement.assign(vec4(pos.add(gotoVel.mul(this.uDeltaScale)), 1.0));
-        }).Else(() => {
-          posElement.assign(vec4(pos, 1.0));
-        });
-      }).ElseIf(isBoids, () => {
-        // ── BOIDS (state ≈ 0) ──────────────────────────────────
-        const vel   = velElement.xyz.toVar();
-        const accel = vec3(0).toVar();
-
-        // World boundary (square)
-        const halfSize = this.uWorldSize.sub(float(1.5)); // Inset slightly to account for agent radius
-        If(pos.x.abs().greaterThan(halfSize).or(pos.z.abs().greaterThan(halfSize)), () => {
-          accel.addAssign(pos.negate().normalize().mul(0.05)); // Stronger pull back
-        });
-
-        // Separation
-        Loop({ start: uint(0), end: uint(this.instanceCount), type: 'uint' }, ({ i }) => {
-          const otherPos = this.positionStorage.element(i).xyz;
-          const diff = pos.sub(otherPos);
-          const dist = diff.length();
-          If(dist.lessThan(this.uSeparationRadius).and(dist.greaterThan(0.01)), () => {
-            accel.addAssign(diff.normalize().mul(this.uSeparationStrength));
-          });
-        });
-
-        // Obstacle Avoidance
-        Loop({ start: uint(0), end: uint(this.numObstacles), type: 'uint' }, ({ i }) => {
-          const obsData = this.obstacleStorage.element(i);
-          const obsPos = obsData.xyz;
-          const obsRadius = obsData.w;
-          const diff = pos.sub(obsPos);
-          const dist = diff.length();
-          If(dist.lessThan(obsRadius.add(float(0.8))), () => {
-            const pushForce = diff.normalize().mul(this.uSeparationStrength.mul(8.0));
-            accel.addAssign(pushForce);
-          });
-        });
-
-        const newVel = vel.add(accel).toVar();
-        const speed  = newVel.length();
-        If(speed.greaterThan(0.001), () => {
-          newVel.assign(newVel.normalize().mul(this.uSpeed));
-        }).Else(() => {
-          newVel.assign(vec3(0, 0, this.uSpeed));
-        });
-
-        const nextPos = pos.add(newVel.mul(this.uDeltaScale)).toVar();
-        
-        // Final strict boundary clamp
-        const limit = this.uWorldSize.sub(float(1.0));
-        nextPos.x.assign(nextPos.x.clamp(limit.negate(), limit));
-        nextPos.z.assign(nextPos.z.clamp(limit.negate(), limit));
-
-        velElement.assign(vec4(newVel, 0.0));
-        posElement.assign(vec4(nextPos, 1.0));
-      }).ElseIf(isOffline, () => {
-        // OFFLINE — teleport far away or just stay at door
-        posElement.assign(vec4(0, -100, 0, 1.0)); 
-      }).Else(() => {
-        // FROZEN, TALK, SIT, WORKOUT — hold position
-        const facing = vec3(agentData.x, float(0), agentData.z);
-        If(facing.length().greaterThan(float(0.001)), () => {
-          velElement.assign(vec4(facing, 0.0));
-        });
-        
-        // Lower Y slightly if sitting, raise if on treadmill
-        const finalPos = pos.toVar();
-        If(isSit, () => {
-           finalPos.y.assign(float(-0.45)); // Sit down offset - matches chair height
-        }).ElseIf(isWorkout, () => {
-           finalPos.y.assign(float(0.1)); // On treadmill belt
-        }).ElseIf(isRegistering, () => {
-           finalPos.y.assign(float(0)); // Standing at reception
-        }).Else(() => {
-           finalPos.y.assign(float(0));
-        });
-        
-        posElement.assign(vec4(finalPos, 1.0));
-      });
-
-    })().compute(this.instanceCount);
   }
 
   private createInstancedMesh() {
@@ -472,40 +342,13 @@ export class CharacterManager {
       if (this.colorAttribute) instancedGeometry.setAttribute('instanceColor', this.colorAttribute);
 
       const material = new THREE.MeshStandardNodeMaterial();
-      material.roughness = 0.4; // Slightly glossy
-      material.metalness = 0.1; // Non-metallic plastic
-
-      const instanceColor = attribute('instanceColor', 'vec3');
-      const map = (baseMaterial as any).map;
-
-      const expressionData = this.expressionBuffer!.storageNode.element(instanceIndex);
-      const isEyes = name.toLowerCase().includes('eyes');
-      const isMouth = name.toLowerCase().includes('mouth');
-
-      if (isEyes) {
-        material.uvNode = uv().add(expressionData.xy);
-      } else if (isMouth) {
-        material.uvNode = uv().add(expressionData.zw);
-      }
-
-      // Solo coloreamos el mesh cuyo nombre sea 'body'
-      if (name.toLowerCase().includes('body')) {
-        if (map) {
-          const texColor = texture(map);
-          material.colorNode = vec4(texColor.rgb.mul(instanceColor), texColor.a);
-        } else {
-          material.colorNode = vec4(instanceColor, 1.0);
-        }
-      } else {
-        // Los otros respetan la transparencia original de su mapa PNG
-        material.transparent = true;
-        if (map) {
-          const texColor = isEyes || isMouth ? texture(map, material.uvNode) : texture(map);
-          material.colorNode = texColor; // Usa el color y el canal alfa original de la textura
-        } else {
-          material.opacityNode = float(0);
-        }
-      }
+      material.roughness = baseMaterial.roughness;
+      material.metalness = baseMaterial.metalness;
+      material.color.copy(baseMaterial.color);
+      // Solid skin, cloth and hair remain opaque, even without a texture map.
+      // The previous eye-atlas branch made every untextured non-body mesh invisible.
+      if (name === 'Suit') material.colorNode = attribute('instanceColor', 'vec3');
+      if (name === 'Skin' || name === 'Hair') material.colorNode = vec3(baseMaterial.color.r,baseMaterial.color.g,baseMaterial.color.b).mul(float(.72).add(instanceIndex.mod(4).toFloat().mul(.12)));
 
       // Use the SAME node instance for both main pass and shadow depth pass.
       // castShadowPositionNode is the r183 WebGPU-specific API that overrides the
@@ -513,6 +356,7 @@ export class CharacterManager {
       // positionNode ensures the shadow pass always uses our compute-driven positions.
       const vertexNode = this.createVertexNode();
       material.positionNode = vertexNode;
+      material.normalNode = transformNormalToView(this.createVertexNode(true));
       (material as any).castShadowPositionNode = vertexNode;
 
       const instancedMesh = new THREE.Mesh(instancedGeometry, material);
@@ -524,7 +368,7 @@ export class CharacterManager {
     }
   }
 
-  private createVertexNode() {
+  private createVertexNode(normal = false) {
     return Fn(() => {
       const instancePos = this.positionStorage.element(instanceIndex).xyz;
       const rawVel = this.velocityStorage.element(instanceIndex).xyz;
@@ -543,12 +387,13 @@ export class CharacterManager {
         vec3(sin(angle), float(0), cos(angle))
       );
 
-      const finalPosition = positionLocal.toVar();
+      const finalPosition = (normal ? normalLocal : positionLocal).toVar();
 
       if (this.bakedWalkBuffer && this.bakedIdleBuffer && this.bakedTalkBuffer) {
         const walkBuffer = storage(this.bakedWalkBuffer, 'mat4', this.numWalkFrames * this.numBones);
         const idleBuffer = storage(this.bakedIdleBuffer, 'mat4', this.numIdleFrames * this.numBones);
         const talkBuffer = storage(this.bakedTalkBuffer, 'mat4', this.numTalkFrames * this.numBones);
+        const sitBuffer = storage(this.bakedSitBuffer!, 'mat4', this.numSitFrames * this.numBones);
         const agentState = this.agentStateBuffer!.storageNode.element(instanceIndex).w;
 
         const skinIndex = attribute('skinIndex');
@@ -581,7 +426,9 @@ export class CharacterManager {
           addInfluence(skinIndex.w, skinWeight.w);
         };
 
-        If(isFrozen.or(isSit), () => {
+        If(isSit, () => {
+          buildSkinMat(sitBuffer, this.numSitFrames, this.sitDuration);
+        }).ElseIf(isFrozen, () => {
           buildSkinMat(idleBuffer, this.numIdleFrames, this.idleDuration);
         }).ElseIf(isTalk.or(isRegistering), () => {
           buildSkinMat(talkBuffer, this.numTalkFrames, this.talkDuration);
@@ -591,15 +438,15 @@ export class CharacterManager {
           buildSkinMat(walkBuffer, this.numWalkFrames, this.walkDuration);
         });
 
-        finalPosition.assign(skinMat.mul(vec4(positionLocal, 1.0)).xyz);
+        finalPosition.assign(skinMat.mul(vec4(normal ? normalLocal : positionLocal, normal ? 0.0 : 1.0)).xyz);
 
         // Scale to 0 if offline
         If(isOffline, () => {
-          finalPosition.assign(vec3(0));
+          if (!normal) finalPosition.assign(vec3(0));
         });
       }
 
-      return rotationMat.mul(finalPosition).add(instancePos);
+      return normal ? rotationMat.mul(finalPosition).normalize() : rotationMat.mul(finalPosition).add(instancePos);
     })();
   }
 
@@ -620,6 +467,10 @@ export class CharacterManager {
         for (let k = 0; k < 16; k++) data[i + k] = skeleton.boneMatrices[b * 16 + k];
       }
     }
+    mixer.stopAllAction();
+    mixer.uncacheRoot(root);
+    skeleton.pose();
+    root.updateMatrixWorld(true);
     return {
       buffer: new THREE.StorageBufferAttribute(data, 16),
       numFrames,

@@ -1,12 +1,17 @@
+import { findOfficeRoute } from './navigation';
 import { AgentBehavior } from '../../types';
 
 type Obstacle = { position: { x: number; z: number }; radius: number };
 type Settings = { speed: number; worldSize: number; separationRadius: number; separationStrength: number };
 
+const routeCaches = new WeakMap<Float32Array, Map<number, {x:number;z:number;limit:number;obstacles:Obstacle[];points:{x:number;z:number}[]}>>();
+
 /** WebGL movement uses the same vec4 position/state layout as the GPU path. */
 export function stepCPUAgents(positions: Float32Array, velocities: Float32Array, states: Float32Array, delta: number, settings: Settings, obstacles: Obstacle[]) {
   const count = positions.length / 4;
   const previous = positions.slice();
+  let routes=routeCaches.get(positions);
+  if(!routes){routes=new Map();routeCaches.set(positions,routes);}
   const frameScale = Math.min(Math.max(delta, 0) * 60, 3);
   const limit = Math.max(1, settings.worldSize - 1);
   const cellSize = Math.max(.1, settings.separationRadius);
@@ -32,7 +37,13 @@ export function stepCPUAgents(positions: Float32Array, velocities: Float32Array,
       continue;
     }
     if (state === AgentBehavior.GOTO) {
-      const dx = states[k] - x, dz = states[k + 2] - z, distance = Math.hypot(dx, dz);
+      let route=routes.get(i);
+      if(!route||route.x!==states[k]||route.z!==states[k+2]||route.limit!==limit||route.obstacles!==obstacles){
+        route={x:states[k],z:states[k+2],limit,obstacles,points:findOfficeRoute({x,z},{x:states[k],z:states[k+2]},obstacles,limit)};routes.set(i,route);
+      }
+      while(route.points.length>1&&Math.hypot(route.points[0].x-x,route.points[0].z-z)<.3)route.points.shift();
+      const target=route.points[0];if(!target){velocities[k]=velocities[k+2]=0;continue;}
+      const dx = target.x - x, dz = target.z - z, distance = Math.hypot(dx, dz);
       if (distance <= .2) continue;
       const speed = Math.min(settings.speed * 3, distance / Math.max(frameScale, .001));
       vx = dx / distance * speed; vz = dz / distance * speed;

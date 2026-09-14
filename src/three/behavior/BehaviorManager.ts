@@ -105,9 +105,9 @@ export class BehaviorManager {
       const receptionSlot = OFFICE_SLOTS.find(s => s.type === 'RECEPTION');
       
       if (receptionSlot) {
-        const lineOffset = queueIndex * 1.5;
+        const lineOffset = (queueIndex % 5) * 1.5;
         targetPos = new THREE.Vector3(
-          receptionSlot.position.x,
+          receptionSlot.position.x + Math.floor(queueIndex / 5) % 5 * 1.5,
           receptionSlot.position.y,
           receptionSlot.position.z + lineOffset
         );
@@ -143,8 +143,8 @@ export class BehaviorManager {
           slotType = 'OFFLINE';
           behavior = AgentBehavior.OFFLINE;
         } else if (rand < 0.15) {
-          slotType = 'TREADMILL';
-          behavior = AgentBehavior.WORKOUT;
+          slotType = 'SOFA';
+          behavior = AgentBehavior.SIT;
         } else if (agent.department === 'Production' || agent.department === 'Finance') {
           if (rand < 0.7) {
             slotType = 'DESK';
@@ -174,7 +174,7 @@ export class BehaviorManager {
         slotId = slot.id;
         this.occupiedSlots.add(slotId);
       } else if (slotType === 'OFFLINE') {
-        targetPos = new THREE.Vector3(0, 0, 31); // The glass door
+        targetPos = new THREE.Vector3(0, 0, 28); // Reachable exit inside the movement bounds
         targetRotation = 0;
         slotId = 'offline-exit';
         behavior = AgentBehavior.OFFLINE;
