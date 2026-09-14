@@ -73,7 +73,7 @@ export const useStore = create<CharacterState>()(
     setAIResponse: (aiResponse: string) => set({ aiResponse }),
     toggleDebug: () => set((state) => ({ isDebugOpen: !state.isDebugOpen })),
     toggleDashboard: () => set((state) => ({ isDashboardOpen: !state.isDashboardOpen })),
-    setInstanceCount: (count: number) => set({ instanceCount: count }),
+    setInstanceCount: (count: number) => set({ instanceCount: Math.max(1, Math.min(2000, Math.round(count))) }),
     setWorldSize: (size: number) => set({ worldSize: size }),
 
     setBoidsParams: (params) => set((state) => ({

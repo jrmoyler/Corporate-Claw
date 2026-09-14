@@ -21,6 +21,7 @@ export class Engine {
     try {
       await this.renderer.init();
     } catch (e) {
+      console.error("Renderer initialization:", e);
       throw new Error("Your browser could not start the 3D renderer. Enable hardware acceleration and reload.");
     }
   }

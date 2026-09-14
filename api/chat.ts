@@ -7,8 +7,9 @@ export default async function handler(req: Request, res: ServerResponse) {
   const reply = (status: number, body: object) => { res.statusCode = status; res.end(JSON.stringify(body)); };
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return reply(405, { error: 'Method not allowed' }); }
   const origin = req.headers.origin;
-  if (origin && new URL(origin).host !== req.headers.host) return reply(403, { error: 'Origin not allowed' });
-  const body = req.body as any;
+  try { if (origin && new URL(origin).host !== req.headers.host) return reply(403, { error: 'Origin not allowed' }); } catch { return reply(403, { error: 'Invalid origin' }); }
+  let body: any;
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; } catch { return reply(400, { error: 'Invalid JSON' }); }
   if (!body || typeof body.message !== 'string' || !body.message.trim() || body.message.length > 2000 || typeof body.systemInstruction !== 'string' || body.systemInstruction.length > 4000 || !Array.isArray(body.history) || body.history.length > 20 || body.history.some((m: any) => !m || !['user', 'model'].includes(m.role) || typeof m.text !== 'string' || m.text.length > 4000)) return reply(400, { error: 'Invalid chat request' });
   if (!process.env.GEMINI_API_KEY) return reply(503, { error: 'Agent chat is not configured yet. The office simulation and training remain available.' });
   try {

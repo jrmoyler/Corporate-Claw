@@ -16,7 +16,9 @@ export default function FurnishingViewer({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const prior = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
-    const engine = new Engine(ref.current!, true, { preserveDrawingBuffer: false, stencil: true });
+    let engine: Engine;
+    try { engine = new Engine(ref.current!, true, { preserveDrawingBuffer: false, stencil: true }); }
+    catch { setStatus('3D furnishings need a browser with hardware acceleration. You can close this window and continue using the workspace.'); return () => prior?.focus(); }
     engine.setHardwareScalingLevel(Math.max(1, devicePixelRatio / 1.5));
     const scene = new Scene(engine); scene.clearColor = new Color4(.94,.925,.895,1);
     const camera = new ArcRotateCamera('Furnishing camera', -Math.PI / 2.5, Math.PI / 2.8, 6.7, new Vector3(0,.8,0), scene);

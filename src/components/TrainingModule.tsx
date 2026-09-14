@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, GraduationCap, CheckCircle2, Play, BookOpen, Trophy, Star } from 'lucide-react';
@@ -36,10 +36,19 @@ const EXERCISES: TrainingExercise[] = [
   }
 ];
 
+const CHECKPOINTS: Record<string, { question: string; options: string[]; correct: number; explanation: string }> = {
+  'ex-1': { question: 'A mission has an unclear owner. What should you do first?', options: ['Assign it to every department', 'Confirm one owner, an outcome and a deadline', 'Begin work without clarification'], correct: 1, explanation: 'A clear owner and measurable outcome prevent duplicate effort and missed handoffs.' },
+  'ex-2': { question: 'Two teams need the same specialist. How do you allocate their time?', options: ['Prioritize by impact and urgency, then agree on capacity', 'Split every hour equally regardless of deadlines', 'Let the loudest team decide'], correct: 0, explanation: 'Explicit priorities and real capacity make resource decisions defensible.' },
+  'ex-3': { question: 'A proposed mission is busy work with no strategic outcome. What next?', options: ['Increase its priority', 'Add more agents', 'Connect it to a measurable goal or stop it'], correct: 2, explanation: 'Every mission should support a defined company outcome.' },
+  'ex-4': { question: 'Sales and Production disagree on a delivery date. What resolves the conflict?', options: ['Promise the earliest date', 'Agree on scope, capacity, tradeoffs and a shared commitment', 'Avoid the discussion'], correct: 1, explanation: 'Shared facts and explicit tradeoffs create a commitment both teams can keep.' },
+};
+
 const TrainingModule: React.FC = () => {
+  const [answer, setAnswer] = useState<number | null>(null);
   const { trainingState, setTrainingMode, startExercise, completeExercise } = useStore();
 
   if (!trainingState.isTrainingMode) return null;
+  const checkpoint = trainingState.activeExercise ? CHECKPOINTS[trainingState.activeExercise.id] : null;
 
   const handleClose = () => {
     setTrainingMode(false);
@@ -116,9 +125,11 @@ const TrainingModule: React.FC = () => {
                   </ul>
                 </div>
 
+                {checkpoint && <fieldset className="training-checkpoint"><legend>{checkpoint.question}</legend>{checkpoint.options.map((option, index) => <label key={option}><input type="radio" name="checkpoint" checked={answer === index} onChange={() => setAnswer(index)}/>{option}</label>)}{answer !== null && <p role="status">{answer === checkpoint.correct ? checkpoint.explanation : 'Consider ownership, capacity and measurable outcomes. Try again.'}</p>}</fieldset>}
                 <div className="flex gap-4">
                   <button 
-                    onClick={() => completeExercise(trainingState.activeExercise!.id)}
+                    disabled={answer !== checkpoint?.correct}
+                    onClick={() => { completeExercise(trainingState.activeExercise!.id); setAnswer(null); }}
                     className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
                   >
                     Complete Simulation
@@ -162,7 +173,8 @@ const TrainingModule: React.FC = () => {
                         {ex.description}
                       </p>
                       <button 
-                        onClick={() => startExercise(ex)}
+                        disabled={isCompleted}
+                        onClick={() => { setAnswer(null); startExercise(ex); }}
                         className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                           isCompleted 
                           ? 'bg-emerald-50 text-emerald-600 cursor-default' 

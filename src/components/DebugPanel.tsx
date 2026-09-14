@@ -152,8 +152,10 @@ const DebugPanel: React.FC = () => {
            </div>
            <input
              type="range"
-             min="10"
-             max="50"
+             min="30"
+             max="30"
+             disabled
+             aria-label="Office radius (fixed layout)"
              step="1"
              value={worldSize}
              onChange={(e) => setWorldSize(parseInt(e.target.value))}
@@ -210,6 +212,7 @@ const DebugPanel: React.FC = () => {
            </div>
            <input
              type="range"
+             aria-label="Agent count"
              min="10"
              max="2000"
              step="10"
