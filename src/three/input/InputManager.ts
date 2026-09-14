@@ -16,6 +16,8 @@ export class InputManager {
   private dragStartX = 0;
   private dragStartY = 0;
   private isDragging = false;
+  private pointers = new Set<number>();
+  private boundCancel = (event: PointerEvent) => { this.pointers.delete(event.pointerId); this.isDragging = true; };
 
   public selectedIndex: number | null = null;
 
@@ -34,10 +36,13 @@ export class InputManager {
     canvas.addEventListener('pointerdown', this.boundPointerDown);
     canvas.addEventListener('pointermove', this.boundPointerMove);
     canvas.addEventListener('pointerup', this.boundPointerUp);
+    canvas.addEventListener('pointercancel', this.boundCancel);
   }
 
   private handlePointerDown(event: PointerEvent) {
     if (event.button !== 0) return;
+    this.pointers.add(event.pointerId);
+    if (this.pointers.size > 1) { this.isDragging = true; return; }
     this.dragStartX = event.clientX;
     this.dragStartY = event.clientY;
     this.isDragging = false;
@@ -140,7 +145,8 @@ export class InputManager {
 
   private handlePointerUp(event: PointerEvent) {
     if (event.button !== 0) return;
-    if (this.isDragging) return;
+    this.pointers.delete(event.pointerId);
+    if (this.isDragging || this.pointers.size > 0) return;
     this.handleClick(event as unknown as MouseEvent);
   }
 
@@ -186,5 +192,6 @@ export class InputManager {
     this.canvas.removeEventListener('pointerdown', this.boundPointerDown);
     this.canvas.removeEventListener('pointermove', this.boundPointerMove);
     this.canvas.removeEventListener('pointerup', this.boundPointerUp);
+    this.canvas.removeEventListener('pointercancel', this.boundCancel);
   }
 }

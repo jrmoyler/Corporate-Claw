@@ -18,17 +18,28 @@ export class SceneManager {
   private inputManager: InputManager | null = null;
   private behaviorManager: BehaviorManager | null = null;
   private selectedIndex: number | null = null;
+  private lastAction = "";
 
   private frameCount = 0;
   private lastTime = 0;
   private unsubs: (() => void)[] = [];
   private isDisposed = false;
 
-  constructor(container: HTMLElement) {
+  private resizeHandler = () => this.onResize();
+  private readbackPending = false;
+  private chatGeneration = 0;
+  public paused = false;
+  private observer: ResizeObserver;
+  private actionTimer: ReturnType<typeof setTimeout> | null = null;
+  public ready: Promise<void>;
+
+  constructor(private container: HTMLElement) {
     this.engine = new Engine(container);
     this.stage = new Stage(this.engine.renderer.domElement);
     this.characters = new CharacterManager(this.stage.scene);
-    this.init();
+    this.observer = new ResizeObserver(this.resizeHandler);
+    this.observer.observe(container);
+    this.ready = this.init();
   }
 
   private async init() {
@@ -46,24 +57,10 @@ export class SceneManager {
     this.stage.updateDimensions(state.worldSize);
 
     this.engine.renderer.setAnimationLoop(this.animate.bind(this));
-    window.addEventListener('resize', this.onResize.bind(this));
+    window.addEventListener('resize', this.resizeHandler);
+    this.onResize();
 
-    const stateBuffer = this.characters.getAgentStateBuffer();
-    if (stateBuffer) {
-      this.behaviorManager = new BehaviorManager(
-        stateBuffer,
-        AGENTS,
-        (encounter) => useStore.getState().setActiveEncounter(encounter),
-        (index, isSpeaking) => this.characters.setSpeaking(index, isSpeaking),
-        (npcIndex) => {
-          // Player arrived at NPC -> Start thinking/talking
-          const state = useStore.getState();
-          if (state.isChatting && state.selectedNpcIndex === npcIndex) {
-            this.handleNpcGreeting(npcIndex);
-          }
-        }
-      );
-    }
+    this.rebuildBehavior();
 
     this.inputManager = new InputManager(
       this.engine.renderer.domElement,
@@ -93,6 +90,7 @@ export class SceneManager {
 
     useStore.setState({
       startChat: async (index: number) => {
+        this.chatGeneration++;
         const positions = this.characters.getCPUPositions();
         if (positions) {
           this.behaviorManager?.startChat(index, positions);
@@ -106,6 +104,7 @@ export class SceneManager {
         }
       },
       endChat: () => {
+        this.chatGeneration++;
         const { selectedNpcIndex } = useStore.getState();
         this.behaviorManager?.endChat(selectedNpcIndex);
         useStore.setState({
@@ -119,6 +118,7 @@ export class SceneManager {
         const state = useStore.getState();
         if (state.selectedNpcIndex === null || state.isThinking) return;
 
+        const generation = this.chatGeneration;
         const agent = AGENTS[state.selectedNpcIndex];
         const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -149,6 +149,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
             text
           );
 
+          if (this.isDisposed || generation !== this.chatGeneration) return;
           const modelMessage: ChatMessage = {
             role: 'model',
             text: responseText,
@@ -161,23 +162,29 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
           }));
 
           this.characters.fadeToAction('Wave');
-          setTimeout(() => this.characters.fadeToAction('Idle'), 2000);
+          this.queueIdle();
 
         } catch (error) {
-          console.error("Gemini Error:", error);
-          useStore.setState({ isThinking: false });
+          if (this.isDisposed || generation !== this.chatGeneration) return;
+          useStore.setState((s) => ({ isThinking: false, chatMessages: [...s.chatMessages, { role: 'model', text: error instanceof Error ? error.message : 'Chat unavailable.', timestamp }] }));
         }
       }
     });
 
     // Subscriptions
     const sub1 = useStore.subscribe((state) => {
-      this.characters.fadeToAction(state.currentAction);
+      if (state.currentAction !== this.lastAction) {
+        this.characters.fadeToAction(state.currentAction);
+        this.lastAction = state.currentAction;
+      }
     });
 
     const sub2 = useStore.subscribe((state, prevState) => {
       if (state.instanceCount !== prevState.instanceCount) {
+        state.endChat();
+        state.setSelectedNpc(null);
         this.characters.setInstanceCount(state.instanceCount);
+        this.rebuildBehavior();
       }
       // Update Uniforms when params change
       if (state.boidsParams !== prevState.boidsParams) {
@@ -217,16 +224,38 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
     this.unsubs.push(sub1, sub2);
   }
 
+  private rebuildBehavior() {
+    const stateBuffer = this.characters.getAgentStateBuffer();
+    if (stateBuffer) {
+      this.behaviorManager = new BehaviorManager(
+        stateBuffer,
+        AGENTS.slice(0, this.characters.getCount()),
+        (encounter) => useStore.getState().setActiveEncounter(encounter),
+        (index, isSpeaking) => this.characters.setSpeaking(index, isSpeaking),
+        (npcIndex) => {
+          // Player arrived at NPC -> Start thinking/talking
+          const state = useStore.getState();
+          if (state.isChatting && state.selectedNpcIndex === npcIndex) {
+            this.handleNpcGreeting(npcIndex);
+          }
+        }
+      );
+    }
+
+  }
+
   private onResize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
     this.engine.onResize(w, h);
     this.stage.onResize(w, h);
   }
 
   private animate() {
     this.engine.timer.update();
-    const delta = this.engine.timer.getDelta();
+    const delta = Math.min(this.engine.timer.getDelta(), 0.05);
+    if (document.hidden) return;
+    if (this.paused) { this.stage.update(); this.engine.render(this.stage.scene, this.stage.camera); return; }
     const time = this.engine.timer.getElapsed();
 
     this.stage.update();
@@ -237,8 +266,10 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
     // 2. GPU → CPU readback (async, 1-frame lag). Keeps debugPosArray in sync with the compute shader.
     //    Used for picking, camera follow, and the debug canvas/markers.
     const { isDebugOpen } = useStore.getState();
+    if (!this.readbackPending) {
+    this.readbackPending = true;
     this.characters.syncFromGPU(this.engine.renderer).then((positions) => {
-      if (!positions) return;
+      if (!positions || this.isDisposed) return;
       // Run behavior logic with fresh GPU positions
       this.behaviorManager?.update(positions);
 
@@ -258,12 +289,12 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
           useStore.getState().setDebugStates(new Float32Array(stateBuffer.array));
         }
       }
-    });
+    }).finally(() => { this.readbackPending = false; });
+    }
 
     // 3. Camera follow: NPC if one is selected, otherwise always follow the player
     const { isChatting, selectedNpcIndex, setSelectedPosition, activeEvents } = useStore.getState();
-    const followIdx = this.selectedIndex ?? PLAYER_INDEX;
-    const pos = this.characters.getCPUPosition(followIdx);
+    const pos = selectedNpcIndex === null ? null : this.characters.getCPUPosition(selectedNpcIndex);
     this.stage.setFollowTarget(pos);
 
     // Update speed multiplier based on events
@@ -272,22 +303,6 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
       if (e.impact.speedMult) speedMult *= e.impact.speedMult;
     });
     this.characters.updateSpeedMultiplier(speedMult);
-
-    // Update selected NPC screen position for UI bubble
-    if (selectedNpcIndex !== null) {
-      const npcPos = this.characters.getCPUPosition(selectedNpcIndex);
-      if (npcPos) {
-        const screenPos = npcPos.clone();
-        screenPos.y += 1.3; // CHARACTER_Y_OFFSET + bubble offset
-        screenPos.project(this.stage.camera);
-
-        const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
-        const y = (screenPos.y * -0.5 + 0.5) * window.innerHeight;
-        setSelectedPosition({ x, y });
-      }
-    } else {
-      setSelectedPosition(null);
-    }
 
     // 4. Chat camera logic
     if (isChatting) {
@@ -314,6 +329,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
   }
 
   private async handleNpcGreeting(npcIndex: number) {
+    const generation = this.chatGeneration;
     const agent = AGENTS[npcIndex];
     useStore.setState({ isThinking: true });
 
@@ -332,6 +348,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
         "Hello! Please introduce yourself briefly."
       );
 
+      if (this.isDisposed || generation !== this.chatGeneration) return;
       const modelMessage: ChatMessage = {
         role: 'model',
         text: responseText,
@@ -344,10 +361,10 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
       }));
 
       this.characters.fadeToAction('Wave');
-      setTimeout(() => this.characters.fadeToAction('Idle'), 2000);
+      this.queueIdle();
     } catch (error) {
-      console.error("Auto-presentation error:", error);
-      useStore.setState({ isThinking: false });
+      if (this.isDisposed || generation !== this.chatGeneration) return;
+      useStore.setState({ isThinking: false, chatMessages: [{ role: 'model', text: error instanceof Error ? error.message : 'Chat unavailable.', timestamp: '' }] });
     }
   }
 
@@ -372,12 +389,28 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
     }
   }
 
+  private queueIdle() {
+    if (this.actionTimer) clearTimeout(this.actionTimer);
+    this.actionTimer = setTimeout(() => { if (!this.isDisposed) this.characters.fadeToAction('Idle'); }, 2000);
+  }
+
+  public resetView() {
+    this.stage.camera.position.set(42, 44, 48);
+    useStore.getState().setSelectedNpc(null);
+    this.stage.controls.target.set(0, 0, 0);
+  }
+
   public dispose() {
     this.isDisposed = true;
+    this.chatGeneration++;
+    this.observer.disconnect();
+    if (this.actionTimer) clearTimeout(this.actionTimer);
     this.unsubs.forEach(unsub => unsub());
-    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('resize', this.resizeHandler);
     this.inputManager?.dispose();
+    this.characters.dispose();
+    this.stage.dispose();
     this.engine.dispose();
-    if (this.stage.controls) this.stage.controls.dispose();
+    
   }
 }

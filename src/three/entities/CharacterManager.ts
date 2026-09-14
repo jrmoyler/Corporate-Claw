@@ -80,6 +80,7 @@ export class CharacterManager {
 
   // Uniforms
   private uSpeed = uniform(0.015);
+  private uDeltaScale = uniform(1);
   private uSeparationRadius = uniform(0.8); // Increased radius
   private uSeparationStrength = uniform(0.050); // Increased strength
   private uWorldSize = uniform(30.0);
@@ -105,7 +106,7 @@ export class CharacterManager {
       const walkClip = gltf.animations[2];
       const talkClip = gltf.animations[1];
       const idleClip = gltf.animations[0];
-      if (skinnedMeshes.length === 0 || !walkClip) return;
+      if (skinnedMeshes.length === 0 || !walkClip) throw new Error("Character rig or walk animation is missing.");
 
       this.meshData = skinnedMeshes.map(m => ({
         name: m.name,
@@ -145,7 +146,7 @@ export class CharacterManager {
       this.initInstances();
       this.isLoaded = true;
     } catch (err) {
-      console.error("Failed to load character:", err);
+      throw new Error("The character model could not load. Please reload to retry.");
     }
   }
 
@@ -182,7 +183,9 @@ export class CharacterManager {
   public async syncFromGPU(renderer: any): Promise<Float32Array | null> {
     if (!this.posAttribute) return null;
     try {
-      const buffer = await renderer.getArrayBufferAsync(this.posAttribute);
+      const attribute = this.posAttribute;
+      const buffer = await renderer.getArrayBufferAsync(attribute);
+      if (attribute !== this.posAttribute) return null;
       this.debugPosArray = new Float32Array(buffer);
     } catch {
       // WebGPU readback not available – fall back to stale data
@@ -191,6 +194,7 @@ export class CharacterManager {
   }
 
   public update(delta: number, renderer: any) {
+    this.uDeltaScale.value = Math.min(delta * 60, 3);
     if (this.expressionBuffer) {
       this.expressionBuffer.update(delta);
     }
@@ -199,9 +203,14 @@ export class CharacterManager {
     }
   }
 
+  public dispose() { this.cleanupInstances(); }
+
   private cleanupInstances() {
     for (const mesh of this.instancedMeshes) {
       this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.forEach(material => material.dispose());
     }
     this.instancedMeshes = [];
     this.computeNode = null;
@@ -331,7 +340,7 @@ export class CharacterManager {
           });
           
           velElement.assign(vec4(gotoVel, 0.0));
-          posElement.assign(vec4(pos.add(gotoVel), 1.0));
+          posElement.assign(vec4(pos.add(gotoVel.mul(this.uDeltaScale)), 1.0));
         }).Else(() => {
           posElement.assign(vec4(pos, 1.0));
         });
@@ -377,7 +386,7 @@ export class CharacterManager {
           newVel.assign(vec3(0, 0, this.uSpeed));
         });
 
-        const nextPos = pos.add(newVel).toVar();
+        const nextPos = pos.add(newVel.mul(this.uDeltaScale)).toVar();
         
         // Final strict boundary clamp
         const limit = this.uWorldSize.sub(float(1.0));

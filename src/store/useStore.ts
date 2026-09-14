@@ -1,9 +1,10 @@
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { CharacterState, AnimationName, PerformanceStats, BoidsParams, ActiveEncounter } from '../types';
 
 export const useStore = create<CharacterState>()(
-  (set) => ({
+  persist((set) => ({
     currentAction: AnimationName.WALK,
     isThinking: false,
     aiResponse: "Hello! I'm your AI character. Type something to talk to me.",
@@ -72,7 +73,7 @@ export const useStore = create<CharacterState>()(
     setAIResponse: (aiResponse: string) => set({ aiResponse }),
     toggleDebug: () => set((state) => ({ isDebugOpen: !state.isDebugOpen })),
     toggleDashboard: () => set((state) => ({ isDashboardOpen: !state.isDashboardOpen })),
-    setInstanceCount: (count: number) => set({ instanceCount: count }),
+    setInstanceCount: (count: number) => set({ instanceCount: Math.max(1, Math.min(2000, Math.round(count))) }),
     setWorldSize: (size: number) => set({ worldSize: size }),
 
     setBoidsParams: (params) => set((state) => ({
@@ -103,7 +104,7 @@ export const useStore = create<CharacterState>()(
     completeExercise: (id) => set((state) => ({
       trainingState: {
         ...state.trainingState,
-        completedExercises: [...state.trainingState.completedExercises, id],
+        completedExercises: [...new Set([...state.trainingState.completedExercises, id])],
         activeExercise: state.trainingState.activeExercise?.id === id ? null : state.trainingState.activeExercise
       }
     })),
@@ -128,5 +129,5 @@ export const useStore = create<CharacterState>()(
         }
       };
     }),
-  })
+  }), { name: 'corporate-claw-progress-v1', partialize: (state) => ({ agentProgressions: state.agentProgressions, trainingState: { ...state.trainingState, isTrainingMode: false, activeExercise: null } }) })
 );

@@ -46,10 +46,11 @@ const Dashboard: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-3xl font-black text-zinc-900 tracking-tight uppercase">Performance Dashboard</h2>
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Corporate Claw Real-time Analytics</p>
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Simulation metrics · illustrative starting values</p>
               </div>
             </div>
             <button 
+              aria-label="Close dashboard"
               onClick={toggleDashboard}
               className="p-3 hover:bg-zinc-100 rounded-2xl transition-all text-zinc-400 hover:text-zinc-900 active:scale-90"
             >

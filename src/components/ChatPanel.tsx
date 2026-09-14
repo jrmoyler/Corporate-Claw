@@ -79,7 +79,7 @@ const ChatPanel: React.FC = () => {
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed top-0 right-0 w-100 h-full bg-white border-l border-zinc-100 shadow-2xl z-50 flex flex-col pointer-events-auto overflow-hidden"
+      className="fixed top-0 right-0 w-full sm:w-100 h-full bg-white border-l border-zinc-100 shadow-2xl z-50 flex flex-col pointer-events-auto overflow-hidden"
     >
       {/* Color accent bar */}
       <div
@@ -90,6 +90,7 @@ const ChatPanel: React.FC = () => {
       <div className="p-8 border-b border-zinc-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-4">
           <button 
+            aria-label="Close conversation"
             onClick={endChat}
             className="p-2 hover:bg-zinc-100 rounded-full transition-colors text-zinc-400 hover:text-zinc-900"
           >
@@ -204,7 +205,7 @@ const ChatPanel: React.FC = () => {
                   setIsTyping(false);
                 }
               }}
-              onPaste={handlePaste}
+              maxLength={2000}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();

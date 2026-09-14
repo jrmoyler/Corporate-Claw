@@ -1,6 +1,7 @@
 
 import * as THREE from 'three/webgpu';
 import { uv, sin, vec2, vec3, vec4 } from 'three/tsl';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OFFICE_SLOTS, FurnitureSlot } from '../../data/officeLayout';
 
@@ -17,17 +18,19 @@ export class Stage {
   private readonly defaultTarget = new THREE.Vector3(0, 0.8, 0);
 
   private fans: THREE.Group[] = [];
+  private disposed = false;
+  private sofas: THREE.Group[] = [];
   private screens: THREE.Mesh[] = [];
   private waypointIndicator: THREE.Mesh | null = null;
 
   constructor(rendererElement: HTMLElement) {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x1a1a1a); // Darker background for better contrast
+    this.scene.background = new THREE.Color(0xd7d1c5); // Architectural studio backdrop
     this.environmentGroup = new THREE.Group();
     this.scene.add(this.environmentGroup);
 
     this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.set(40, 35, 50);
+    this.camera.position.set(42, 44, 48);
 
     this.controls = new OrbitControls(this.camera, rendererElement);
     this.controls.enableDamping = true;
@@ -51,6 +54,7 @@ export class Stage {
 
     this.setupLights();
     this.createOfficeEnvironment();
+    this.loadLoungeFurniture();
   }
 
   private setupLights() {
@@ -73,7 +77,7 @@ export class Stage {
     this.scene.add(dirLight);
 
     // Warm interior accent lights (Grid of ceiling lights)
-    const gridSpacing = 15;
+    const gridSpacing = 30;
     for (let x = -22.5; x <= 22.5; x += gridSpacing) {
       for (let z = -22.5; z <= 22.5; z += gridSpacing) {
         const pLight = new THREE.PointLight(0xfff4e0, 80, 35); // Reduced intensity and range
@@ -139,7 +143,7 @@ export class Stage {
     this.createCoffeeTable(4, 15);
     this.createDumbbellRack(22, 22);
     this.createCeilingFans();
-    this.createDustParticles();
+
     
     // More plants for ambience
     this.createPlant(-28, 0, -28);
@@ -166,6 +170,29 @@ export class Stage {
     this.createWallArt(30.4, 6, 15, 'R');
     this.createWallArt(-15, 6, -30.4, 'B'); // Back wall
     this.createWallArt(15, 6, -30.4, 'B');
+  }
+
+  private loadLoungeFurniture() {
+    new GLTFLoader().load('/models/lounge-sofa.glb', gltf => {
+      if (this.disposed) return;
+      this.sofas.forEach(sofa => {
+        sofa.clear();
+        const model=gltf.scene.clone(true);
+        model.traverse((obj: any) => { if(obj.isMesh) { obj.castShadow=true; obj.receiveShadow=true; } });
+        sofa.add(model);
+      });
+    }, undefined, () => { /* Existing geometric sofas remain a usable fallback. */ });
+  }
+
+  public dispose() {
+    this.disposed=true;
+    this.controls.dispose();
+    this.scene.traverse((obj: any) => {
+      obj.geometry?.dispose();
+      const materials = Array.isArray(obj.material) ? obj.material : obj.material ? [obj.material] : [];
+      materials.forEach((m: any) => { m.map?.dispose(); m.dispose(); });
+    });
+    this.scene.clear();
   }
 
   private createWallArt(x: number, y: number, z: number, side: 'L' | 'R' | 'B') {
@@ -213,7 +240,8 @@ export class Stage {
     group.position.set(x, 0, z);
     group.rotation.y = rotation;
 
-    const mat = new THREE.MeshStandardNodeMaterial({ color: 0x8B5A2B, roughness: 0.9 }); // Brown sofa
+    const mat = new THREE.MeshStandardNodeMaterial({ color: 0x19493d, roughness: 0.9 });
+    this.sofas.push(group); // Brown sofa
     
     // Base
     const base = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 1.5), mat);
@@ -443,17 +471,17 @@ export class Stage {
     const rightWall = new THREE.Mesh(wallGeo, wallMat);
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.position.set(31, 6, 0);
-    this.environmentGroup.add(rightWall);
+    // Open elevation for the dollhouse camera.
 
     // Entrance wall (with opening for reception)
     const entWallGeo = new THREE.BoxGeometry(28, 12, 1);
     const entWallL = new THREE.Mesh(entWallGeo, wallMat);
     entWallL.position.set(-17, 6, 31);
-    this.environmentGroup.add(entWallL);
+
 
     const entWallR = new THREE.Mesh(entWallGeo, wallMat);
     entWallR.position.set(17, 6, 31);
-    this.environmentGroup.add(entWallR);
+
 
     // Windows on the side walls
     const windowGeo = new THREE.PlaneGeometry(8, 6);
@@ -474,7 +502,7 @@ export class Stage {
       const winR = new THREE.Mesh(windowGeo, windowMat);
       winR.position.set(30.45, 6, z);
       winR.rotation.y = -Math.PI / 2;
-      this.environmentGroup.add(winR);
+  
     }
 
     // Glass entrance
@@ -488,7 +516,7 @@ export class Stage {
     });
     const glass = new THREE.Mesh(glassGeo, glassMat);
     glass.position.set(0, 6, 31);
-    this.environmentGroup.add(glass);
+
 
     // Baseboards
     const bbMat = new THREE.MeshStandardNodeMaterial({ color: 0x212529 });
@@ -503,7 +531,7 @@ export class Stage {
     const ceilMat = new THREE.MeshStandardNodeMaterial({ color: 0xf5f2ed, roughness: 1 }); // Warm cream
     const ceil = new THREE.Mesh(ceilGeo, ceilMat);
     ceil.position.y = 12;
-    this.environmentGroup.add(ceil);
+
   }
 
   private createFloors() {
@@ -837,12 +865,17 @@ export class Stage {
     pot.position.y = 0.6;
     group.add(pot);
 
-    const leafGeo = new THREE.SphereGeometry(1.2, 8, 8);
-    const leafMat = new THREE.MeshStandardNodeMaterial({ color: 0x2d6a4f });
-    const leaves = new THREE.Mesh(leafGeo, leafMat);
-    leaves.position.y = 2.2;
-    leaves.scale.set(1, 1.5, 1);
-    group.add(leaves);
+    const stemMat = new THREE.MeshStandardNodeMaterial({ color: 0x5c492a });
+    const leafMat = new THREE.MeshStandardNodeMaterial({ color: 0x295c39, roughness: .85 });
+    for (let i=0; i<11; i++) {
+      const angle=i*2.399;
+      const h=1.4+(i%4)*.35;
+      const stem=new THREE.Mesh(new THREE.CylinderGeometry(.025,.035,h,5),stemMat);
+      stem.position.set(Math.cos(angle)*.15,h/2+.7,Math.sin(angle)*.15); group.add(stem);
+      const leaf=new THREE.Mesh(new THREE.SphereGeometry(1,8,5),leafMat);
+      leaf.scale.set(.24,.09,.8); leaf.rotation.set(.4,angle,.25);
+      leaf.position.set(Math.cos(angle)*.5,h+.6,Math.sin(angle)*.5); group.add(leaf);
+    }
 
     this.environmentGroup.add(group);
   }
@@ -877,7 +910,7 @@ export class Stage {
     // Create a realistic wood texture using TSL
     const uvNode = uv().mul(vec2(10.0, 50.0));
     const woodNoise = sin(uvNode.x.add(sin(uvNode.y).mul(0.5))).mul(0.05);
-    const woodBase = vec3(0.95, 0.85, 0.65); // Light Oak (matching reference)
+    const woodBase = vec3(0.36, 0.22, 0.12); // Light Oak (matching reference)
     const woodColor = woodBase.add(woodNoise);
 
     const planeMaterial = new THREE.MeshStandardNodeMaterial({
