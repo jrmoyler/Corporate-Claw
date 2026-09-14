@@ -45,7 +45,9 @@ export class SceneManager {
   private async init() {
     await this.engine.init();
     if (this.isDisposed) return;
-    await this.characters.load();
+    // WebGL2 can render the office, but not this agent shader's arbitrary
+    // storage-buffer/bone-matrix accesses. Use standard skinning on that backend.
+    await this.characters.load(this.engine.renderer.backend.isWebGPUBackend === true);
     if (this.isDisposed) return;
 
     const state = useStore.getState();
@@ -56,9 +58,14 @@ export class SceneManager {
     this.characters.updateWorldSize(state.worldSize);
     this.stage.updateDimensions(state.worldSize);
 
-    this.engine.renderer.setAnimationLoop(this.animate.bind(this));
     window.addEventListener('resize', this.resizeHandler);
     this.onResize();
+    // Resolve the loading screen only after the first frame actually renders.
+    this.stage.update();
+    this.characters.update(0, this.engine.renderer);
+    await this.engine.renderer.renderAsync(this.stage.scene, this.stage.camera);
+    if (this.isDisposed) return;
+    this.engine.renderer.setAnimationLoop(this.animate.bind(this));
 
     this.rebuildBehavior();
 
