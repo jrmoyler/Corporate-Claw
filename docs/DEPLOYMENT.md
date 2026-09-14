@@ -1,7 +1,7 @@
 # Deploying Corporate Claw from main
 
 The repository root is the Vercel project root. Use the Vite preset, `npm ci`,
-`npm run build`, and output directory `dist`. `vercel.json` enables automatic
+`npm run lint && npm test && npm run build`, and output directory `dist`. `vercel.json` enables automatic
 Git deployments, including main and pull-request previews. Production Branch
 must be `main` in the Vercel project's production environment settings; that
 project-level setting cannot be declared in `vercel.json`.
@@ -52,3 +52,8 @@ Existing production model downloads were checked against main's Git blob hashes
 before changes. Both matched, so stale deployment alone did not explain the
 reported missing 3D view. The previous production deployment has no Git source
 metadata; a fresh Git deployment must be verified separately.
+
+Vercel successfully created a Git-source preview of PR #5 after its branch was
+pushed. GitHub Actions could not start because the account is billing-locked;
+the same typecheck and tests therefore run inside the Vercel build itself.
+The new standalone Actions workflow was removed before merging.
