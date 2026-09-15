@@ -1,5 +1,16 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import validator from 'gltf-validator';
+
+/** Validate binary data as well as JSON, including strided/sparse accessors and skin indices. */
+export async function validateGLB(data, name = 'GLB') {
+  const report = await validator.validateBytes(data, { uri: name, maxIssues: 0 });
+  if (report.issues.numErrors) {
+    const errors = report.issues.messages.filter(issue => issue.severity === 0);
+    throw new Error(`Invalid ${name}: ${errors.slice(0, 8).map(issue => `${issue.code} ${issue.pointer ?? ''}: ${issue.message}`).join('\n')}`);
+  }
+}
 
 export function readGLB(path) {
   const data = readFileSync(path);
@@ -11,15 +22,12 @@ export function readGLB(path) {
   return JSON.parse(data.toString('utf8', 20, 20 + length));
 }
 
-export function verifyAssets(root = 'public') {
-  const character = readGLB(resolve(root, 'models/character.glb'));
+export async function verifyAssets(root = 'public') {
+  const files = readdirSync(root, { recursive: true }).filter(file => /\.glb$/i.test(file));
+  for (const file of files) await validateGLB(readFileSync(resolve(root, file)), file);
   const sofa = readGLB(resolve(root, 'models/lounge-sofa.glb'));
-  if (!character.skins?.length || !character.meshes?.length) throw new Error('The agent rig is missing.');
-  for (const name of ['Idle', 'Talk', 'Walk']) {
-    if (!character.animations?.some(clip => clip.name.toLowerCase() === name.toLowerCase())) throw new Error(`Agent animation missing: ${name}`);
-  }
   if (!sofa.meshes?.length) throw new Error('The lounge furniture has no geometry.');
-  console.log(`Verified ${root}: rigged agents, Idle/Talk/Walk animations, ${sofa.meshes.length} furniture meshes.`);
+  console.log(`Verified ${root}: ${files.length} GLBs with binary validation, ${sofa.meshes.length} furniture meshes.`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) verifyAssets(process.argv[2]);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await verifyAssets(process.argv[2]);

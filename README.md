@@ -39,6 +39,6 @@ The current release is deployed directly through Vercel. Automatic deployment on
 
 ## Attribution and licensing
 
-Original character models (`character.glb`, `character-old.glb`) remain © 2026 Arturo Paracuellos (unboring.net), CC BY-NC 4.0. Preserve their attribution and non-commercial terms. The original source project is Autonomous Characters Lab by Arturo Paracuellos. See `LICENSE` and `public/models/README.txt`.
+The unused, malformed original character models (`character.glb`, `character-old.glb`) were removed from deployment; their copies in repository history remain © 2026 Arturo Paracuellos (unboring.net), CC BY-NC 4.0. Preserve their attribution and non-commercial terms. The original source project is Autonomous Characters Lab by Arturo Paracuellos. See `LICENSE` and `public/models/README.txt`.
 
 The newly authored `lounge-sofa.glb` and its generation script are contributed specifically for Corporate Claw; they do not derive from the third-party character models.

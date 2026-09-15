@@ -78,6 +78,8 @@ export interface CharacterState {
   aiResponse: string;
   isDebugOpen: boolean;
   instanceCount: number;
+  agentLimit: number;
+  setAgentLimit: (limit: number) => void;
   worldSize: number;
   boidsParams: BoidsParams;
   debugPositions: Float32Array | null;

@@ -7,6 +7,7 @@ const DebugPanel: React.FC = () => {
     performance,
     isDebugOpen,
     instanceCount,
+    agentLimit,
     setInstanceCount,
     boidsParams,
     setBoidsParams,
@@ -214,13 +215,15 @@ const DebugPanel: React.FC = () => {
              type="range"
              aria-label="Agent count"
              min="10"
-             max="2000"
+             max={agentLimit}
              step="10"
              value={instanceCount}
              onChange={(e) => setInstanceCount(parseInt(e.target.value))}
              className="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-zinc-900"
            />
         </div>
+
+        {agentLimit < 2000 && <p className="text-xs text-zinc-500">WebGL mode supports up to {agentLimit} agents.</p>}
 
         {/* Renderer Info */}
         <div className="pt-4 border-t border-black/5">

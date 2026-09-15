@@ -1,3 +1,4 @@
+import { WEBGL_AGENT_LIMIT, WEBGPU_AGENT_LIMIT } from './entities/populationLimits';
 
 import { Engine } from './core/Engine';
 import { Stage } from './core/Stage';
@@ -47,7 +48,10 @@ export class SceneManager {
     if (this.isDisposed) return;
     // WebGL2 can render the office, but not this agent shader's arbitrary
     // storage-buffer/bone-matrix accesses. Use standard skinning on that backend.
-    await this.characters.load(this.engine.renderer.backend.isWebGPUBackend === true);
+    const useGPU = this.engine.renderer.backend.isWebGPUBackend === true;
+    useStore.getState().setAgentLimit(useGPU ? WEBGPU_AGENT_LIMIT : WEBGL_AGENT_LIMIT);
+    this.characters.setInstanceCount(useStore.getState().instanceCount);
+    await this.characters.load(useGPU);
     if (this.isDisposed) return;
 
     const state = useStore.getState();
