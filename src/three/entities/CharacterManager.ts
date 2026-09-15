@@ -2,6 +2,7 @@
 import * as THREE from 'three/webgpu';
 import { useStore } from '../../store/useStore';
 import { clampAgentCount, WEBGL_AGENT_LIMIT, WEBGPU_AGENT_LIMIT } from './populationLimits';
+import { agentSurface } from '../../data/agentAppearance';
 import { createSuitedAgent } from './createSuitedAgent';
 import {
   Fn,
@@ -68,6 +69,9 @@ export class CharacterManager {
   // Animation Data (walk = BOIDS/GOTO, idle = FROZEN, talk = TALK)
   private bakedWalkBuffer: THREE.StorageBufferAttribute | null = null;
   private bakedIdleBuffer: THREE.StorageBufferAttribute | null = null;
+  private bakedCoffeeBuffer: THREE.StorageBufferAttribute | null = null;
+  private numCoffeeFrames = 0;
+  private coffeeDuration = 0;
   private bakedSitBuffer: THREE.StorageBufferAttribute | null = null;
   private numSitFrames = 0;
   private sitDuration = 0;
@@ -165,6 +169,8 @@ export class CharacterManager {
       this.bakedSitBuffer = sitData.buffer;
       this.numSitFrames = sitData.numFrames;
       this.sitDuration = sitData.duration;
+      const coffeeData = this.bakeAnimation(firstMesh, gltf.animations.find(c => c.name === 'Coffee')!, model);
+      this.bakedCoffeeBuffer=coffeeData.buffer;this.numCoffeeFrames=coffeeData.numFrames;this.coffeeDuration=coffeeData.duration;
       this.initInstances();
       this.isLoaded = true;
     } catch (err) {
@@ -348,18 +354,25 @@ export class CharacterManager {
       material.roughness = baseMaterial.roughness;
       material.metalness = baseMaterial.metalness;
       material.color.copy(baseMaterial.color);
-      // Solid skin, cloth and hair remain opaque, even without a texture map.
-      // The previous eye-atlas branch made every untextured non-body mesh invisible.
-      if (name === 'Suit') material.colorNode = attribute('instanceColor', 'vec3');
-      if (name === 'Skin' || name === 'Hair') material.colorNode = vec3(baseMaterial.color.r,baseMaterial.color.g,baseMaterial.color.b).mul(float(.72).add(instanceIndex.mod(4).toFloat().mul(.12)));
+      const appearance = new Float32Array(this.instanceCount * 4);
+      const scales = new Float32Array(this.instanceCount);
+      for(let i=0;i<this.instanceCount;i++){
+        const surface=agentSurface(i,name,this.colors?.[i]);
+        const color=surface.color?new THREE.Color(surface.color):baseMaterial.color;
+        appearance.set([color.r,color.g,color.b,surface.visible||name==='CoffeeCup'?1:0],i*4);
+        scales[i]=surface.height;
+      }
+      instancedGeometry.setAttribute('instanceAppearance',new THREE.InstancedBufferAttribute(appearance,4));
+      instancedGeometry.setAttribute('instanceScale',new THREE.InstancedBufferAttribute(scales,1));
+      material.colorNode=attribute('instanceAppearance','vec4').xyz;
 
       // Use the SAME node instance for both main pass and shadow depth pass.
       // castShadowPositionNode is the r183 WebGPU-specific API that overrides the
       // position used in the shadow depth pass. Setting it explicitly alongside
       // positionNode ensures the shadow pass always uses our compute-driven positions.
-      const vertexNode = this.createVertexNode();
+      const vertexNode = this.createVertexNode(false, name);
       material.positionNode = vertexNode;
-      material.normalNode = transformNormalToView(this.createVertexNode(true));
+      material.normalNode = transformNormalToView(this.createVertexNode(true, name));
       (material as any).castShadowPositionNode = vertexNode;
 
       const instancedMesh = new THREE.Mesh(instancedGeometry, material);
@@ -371,7 +384,7 @@ export class CharacterManager {
     }
   }
 
-  private createVertexNode(normal = false) {
+  private createVertexNode(normal = false, meshName = '') {
     return Fn(() => {
       const instancePos = this.positionStorage.element(instanceIndex).xyz;
       const rawVel = this.velocityStorage.element(instanceIndex).xyz;
@@ -410,7 +423,8 @@ export class CharacterManager {
         const isSit = agentState.greaterThan(float(3.5)).and(agentState.lessThan(float(4.5)));
         const isWorkout = agentState.greaterThan(float(4.5)).and(agentState.lessThan(float(5.5)));
         const isRegistering = agentState.greaterThan(float(5.5)).and(agentState.lessThan(float(6.5)));
-        const isOffline = agentState.greaterThan(float(6.5));
+        const isOffline = agentState.greaterThan(float(6.5)).and(agentState.lessThan(float(7.5)));
+        const isCoffee = agentState.greaterThan(float(7.5));
 
         const buildSkinMat = (animBuf: any, numFrames: number, duration: number, speedMult: any = float(1.0)) => {
           const animTime = time.add(timeOffset).mul(speedMult);
@@ -429,7 +443,9 @@ export class CharacterManager {
           addInfluence(skinIndex.w, skinWeight.w);
         };
 
-        If(isSit, () => {
+        If(isCoffee, () => {
+          buildSkinMat(storage(this.bakedCoffeeBuffer!, 'mat4', this.numCoffeeFrames * this.numBones), this.numCoffeeFrames, this.coffeeDuration);
+        }).ElseIf(isSit, () => {
           buildSkinMat(sitBuffer, this.numSitFrames, this.sitDuration);
         }).ElseIf(isFrozen, () => {
           buildSkinMat(idleBuffer, this.numIdleFrames, this.idleDuration);
@@ -443,13 +459,14 @@ export class CharacterManager {
 
         finalPosition.assign(skinMat.mul(vec4(normal ? normalLocal : positionLocal, normal ? 0.0 : 1.0)).xyz);
 
+        if(meshName==='CoffeeCup' && !normal)If(isCoffee.not(),()=>{finalPosition.assign(vec3(0));});
         // Scale to 0 if offline
         If(isOffline, () => {
           if (!normal) finalPosition.assign(vec3(0));
         });
       }
 
-      return normal ? rotationMat.mul(finalPosition).normalize() : rotationMat.mul(finalPosition).add(instancePos);
+      return normal ? rotationMat.mul(finalPosition).normalize() : rotationMat.mul(finalPosition).mul(attribute('instanceScale')).mul(attribute('instanceAppearance','vec4').w).add(instancePos);
     })();
   }
 

@@ -56,6 +56,12 @@ const DebugPanel: React.FC = () => {
       '#22c55e', // 0 BOIDS  — green
       '#f97316', // 1 FROZEN — orange
       '#a855f7', // 2 GOTO   — purple
+      '#38bdf8', // 3 TALK
+      '#64748b', // 4 SIT
+      '#f43f5e', // 5 WORKOUT
+      '#eab308', // 6 REGISTERING
+      '#94a3b8', // 7 OFFLINE
+      '#9b7049', // 8 COFFEE
     ];
     const PLAYER_COLOR = '#3b82f6'; // blue
 

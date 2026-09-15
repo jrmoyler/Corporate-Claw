@@ -1,3 +1,5 @@
+import { CoffeeBreaks } from './CoffeeBreaks';
+import type { ToolEvent } from '../../services/mcpActivity';
 import * as THREE from 'three/webgpu';
 import { AgentBehavior, ActiveEncounter } from '../../types';
 import { AgentStateBuffer } from './AgentStateBuffer';
@@ -36,6 +38,7 @@ interface AgentNeeds {
 }
 
 export class BehaviorManager {
+  public coffee: CoffeeBreaks;
   private frozenPairs = new Map<string, FrozenPair>();
   private frozenIndices = new Set<number>();
   private unfreezeTimestamps = new Map<number, number>(); // index → time of last unfreeze
@@ -62,6 +65,7 @@ export class BehaviorManager {
     
     // Initialize tasks and needs for NPCs
     this.initializeAgents();
+    this.coffee=new CoffeeBreaks(stateBuffer,(i,elapsed)=>{const task=this.agentTasks.get(i);if(task)task.expiresAt+=elapsed*1000;});
   }
 
   private initializeAgents() {
@@ -127,7 +131,7 @@ export class BehaviorManager {
         behavior = AgentBehavior.OFFLINE;
       } else if (needs.energy < 0.3) {
         slotType = Math.random() > 0.5 ? 'COFFEE_MACHINE' : 'CAFE_TABLE';
-        behavior = slotType === 'COFFEE_MACHINE' ? AgentBehavior.FROZEN : AgentBehavior.TALK;
+        behavior = slotType === 'COFFEE_MACHINE' ? AgentBehavior.COFFEE : AgentBehavior.TALK;
       } else if (needs.focus < 0.3) {
         slotType = 'DESK';
         behavior = AgentBehavior.SIT;
@@ -165,7 +169,7 @@ export class BehaviorManager {
       }
 
       // Find available slot of requested type
-      const availableSlots = OFFICE_SLOTS.filter(s => s.type === slotType && !this.occupiedSlots.has(s.id));
+      const availableSlots = OFFICE_SLOTS.filter(s => s.type === slotType && !this.occupiedSlots.has(s.id) && !(s.type==='COFFEE_MACHINE'&&this.coffee?.hasTrips));
       
       if (availableSlots.length > 0) {
         const slot = availableSlots[Math.floor(Math.random() * availableSlots.length)];
@@ -198,7 +202,8 @@ export class BehaviorManager {
     this.stateBuffer.setState(index, AgentBehavior.GOTO);
   }
 
-  public update(positions: Float32Array): void {
+  public update(positions: Float32Array, delta = 1/60): void {
+    this.coffee.update(positions,delta);
     const now = Date.now();
     const count = this.agents.length;
     const { activeEvents, addWorldEvent, removeWorldEvent, updateAgentXP } = useStore.getState();
@@ -317,8 +322,8 @@ export class BehaviorManager {
         }
       }
 
-      const avgEfficiency = totalEfficiency / (count - 1);
-      const resourceUtilization = totalUtilization / (count - 1);
+      const avgEfficiency = totalEfficiency / Math.max(1,count - 1);
+      const resourceUtilization = totalUtilization / Math.max(1,count - 1);
 
       for (const dept in deptPerformance) {
         if (deptCounts[dept] > 0) {
@@ -343,8 +348,8 @@ export class BehaviorManager {
       if (now > pair.expiresAt) {
         const taskA = this.agentTasks.get(pair.a);
         const taskB = this.agentTasks.get(pair.b);
-        this.stateBuffer.setState(pair.a, taskA?.behavior ?? AgentBehavior.BOIDS);
-        this.stateBuffer.setState(pair.b, taskB?.behavior ?? AgentBehavior.BOIDS);
+        if(!this.coffee.controls(pair.a))this.stateBuffer.setState(pair.a, taskA?.behavior ?? AgentBehavior.BOIDS);
+        if(!this.coffee.controls(pair.b))this.stateBuffer.setState(pair.b, taskB?.behavior ?? AgentBehavior.BOIDS);
 
         this.onSpeakingTrigger(pair.a, false);
         this.onSpeakingTrigger(pair.b, false);
@@ -415,7 +420,7 @@ export class BehaviorManager {
     // 3. Task Management & GOTO arrival
     for (let i = 1; i < count; i++) {
       const task = this.agentTasks.get(i);
-      if (!task) continue;
+      if (!task || this.coffee.controls(i)) continue;
 
       const currentState = this.stateBuffer.getState(i);
 
@@ -461,7 +466,7 @@ export class BehaviorManager {
     }
 
     // Player GOTO arrival
-    if (this.stateBuffer.getState(PLAYER_INDEX) === AgentBehavior.GOTO) {
+    if (!this.coffee.controls(PLAYER_INDEX) && this.stateBuffer.getState(PLAYER_INDEX) === AgentBehavior.GOTO) {
       const wp = this.stateBuffer.getWaypoint(PLAYER_INDEX);
       const pdx = wp.x - positions[PLAYER_INDEX * 4];
       const pdz = wp.z - positions[PLAYER_INDEX * 4 + 2];
@@ -509,6 +514,7 @@ export class BehaviorManager {
         let status = 'Wandering';
         if (task) {
           if (task.behavior === AgentBehavior.SIT) status = 'Working at desk';
+          else if (task.behavior === AgentBehavior.COFFEE) status = 'Getting coffee';
           else if (task.behavior === AgentBehavior.WORKOUT) status = 'Exercising';
           else if (task.behavior === AgentBehavior.TALK) status = 'In a meeting';
           else if (task.behavior === AgentBehavior.FROZEN) status = 'Taking a break';
@@ -530,12 +536,14 @@ export class BehaviorManager {
   }
 
   public setPlayerWaypoint(x: number, z: number): void {
+    if(this.coffee.controls(PLAYER_INDEX))return;
     this.chatNPC = null;
     this.stateBuffer.setWaypoint(PLAYER_INDEX, x, z);
     this.stateBuffer.setState(PLAYER_INDEX, AgentBehavior.GOTO);
   }
 
   public startChat(npcIndex: number, positions: Float32Array): void {
+    if(this.coffee.queued(npcIndex)||this.coffee.queued(PLAYER_INDEX))return;
     const nx = positions[npcIndex * 4];
     const nz = positions[npcIndex * 4 + 2];
     const px = positions[PLAYER_INDEX * 4];
@@ -576,10 +584,22 @@ export class BehaviorManager {
 
   public endChat(npcIndex: number | null): void {
     this.chatNPC = null;
-    if (npcIndex !== null) {
+    if (npcIndex !== null && !this.coffee.controls(npcIndex)) {
       const task = this.agentTasks.get(npcIndex);
       this.stateBuffer.setState(npcIndex, task?.behavior ?? AgentBehavior.BOIDS);
     }
-    this.stateBuffer.setState(PLAYER_INDEX, AgentBehavior.FROZEN);
+    if(!this.coffee.controls(PLAYER_INDEX))this.stateBuffer.setState(PLAYER_INDEX, AgentBehavior.FROZEN);
   }
+
+  public toolEvent(event:ToolEvent){
+    if(event.phase==='start')for(const [key,pair]of this.frozenPairs){if(pair.a===event.agentIndex||pair.b===event.agentIndex){
+      for(const index of [pair.a,pair.b]){this.frozenIndices.delete(index);this.onSpeakingTrigger(index,false);}
+      this.frozenPairs.delete(key);
+    }}
+    this.coffee.event(event);
+    if(event.phase==='start')for(const [i,task]of this.agentTasks){
+      if(task.slotId==='coffee-1'&&!this.coffee.controls(i))this.assignNewTask(i);
+    }
+  }
+  public dispose(){this.coffee.dispose();}
 }

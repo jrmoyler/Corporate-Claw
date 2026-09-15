@@ -148,6 +148,7 @@ export enum AgentBehavior {
   SIT = 4,     // sitting at a desk
   WORKOUT = 5, // exercising in the gym
   REGISTERING = 6, // at the front desk
+  COFFEE = 8, // drinking during a tool-call coffee break
   OFFLINE = 7,     // agent has left the office
 }
 
