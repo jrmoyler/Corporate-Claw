@@ -5,6 +5,9 @@
   "functions": {
     "api/chat.ts": {
       "maxDuration": 30
+    },
+    "api/mcp.ts": {
+      "maxDuration": 30
     }
   },
   "headers": [

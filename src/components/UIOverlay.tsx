@@ -1,7 +1,10 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, useSyncExternalStore } from 'react';
 import { useStore } from '../store/useStore';
+import { agentAppearance } from '../data/agentAppearance';
+import { mcpActivity } from '../services/mcpActivity';
+import ToolRunner from './ToolRunner';
 import { AGENTS } from '../data/agents';
-import { Search, ChevronRight, X, Users, RotateCcw, Play, Pause, Armchair, SlidersHorizontal, UserRound, Settings, ChartNoAxesColumnIncreasing, Megaphone, Database, ArrowLeft } from 'lucide-react';
+import { Search, ChevronRight, X, Users, RotateCcw, Play, Pause, Armchair, SlidersHorizontal, UserRound, Settings, ChartNoAxesColumnIncreasing, Megaphone, Database, ArrowLeft, Wrench } from 'lucide-react';
 import ChatPanel from './ChatPanel';
 import HelpModal from './HelpModal';
 import Dashboard from './Dashboard';
@@ -13,12 +16,15 @@ const FurnishingViewer = lazy(() => import('./FurnishingViewer'));
 type Props = { unavailable: boolean; ready: boolean; paused: boolean; onPause: () => void; onReset: () => void };
 export default function UIOverlay({ unavailable, ready, paused, onPause, onReset }: Props) {
   const state = useStore();
+  const [toolAgent,setToolAgent]=useState<number|null>(null);
+  const phases=useSyncExternalStore(mcpActivity.subscribePhases,mcpActivity.snapshot);
+  const openTools=()=>{state.endChat();setToolAgent(state.selectedNpcIndex??0);};
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('All departments');
   const [help, setHelp] = useState(false);
   const [team, setTeam] = useState(false);
   const [furnishing, setFurnishing] = useState(false);
-  const departments = [{ name: 'CEO', filter: 'Executive', icon: UserRound }, { name: 'Production', filter: 'Production', icon: Settings }, { name: 'Sales', filter: 'Sales', icon: ChartNoAxesColumnIncreasing }, { name: 'Marketing', filter: 'Marketing', icon: Megaphone }, { name: 'Finance', filter: 'Finance', icon: Database }];
+  const departments = [{ name: 'CEO', filter: 'Executive', icon: UserRound }, { name: 'Production', filter: 'Production', icon: Settings }, { name: 'Sales', filter: 'Sales', icon: ChartNoAxesColumnIncreasing }, { name: 'Marketing', filter: 'Marketing', icon: Megaphone }, { name: 'Finance', filter: 'Finance', icon: Database }, { name: 'People', filter: 'People', icon: Users }];
   const browsing = search.trim() !== '' || department !== 'All departments';
   const selected = state.selectedNpcIndex !== null ? AGENTS[state.selectedNpcIndex] : null;
   const agents = AGENTS.slice(0, state.instanceCount).filter(a => (department === 'All departments' || a.department === department) && `${a.role} ${a.department} ${a.expertise.join(' ')}`.toLowerCase().includes(search.toLowerCase()));
@@ -35,14 +41,15 @@ export default function UIOverlay({ unavailable, ready, paused, onPause, onReset
       <div className="sidebar-heading"><h2>Your team</h2></div>
       <label className="agent-search"><Search size={17}/><input aria-label="Search agents" placeholder="Search agents…" value={search} onChange={e => setSearch(e.target.value)} /></label>
       {browsing && <button className="directory-back" onClick={() => { setSearch(''); setDepartment('All departments'); }}><ArrowLeft size={16}/> {department === 'All departments' ? 'All teams' : department}</button>}
-      {!browsing && <div className="department-list">{departments.map(({name,filter,icon:Icon},i) => <button key={name} className="department-row" onClick={() => setDepartment(filter)}><span className={`department-icon ${i%2 ? 'green' : ''}`}><Icon size={27}/></span><span>{name}</span><ChevronRight size={19}/></button>)}</div>}
+      {!browsing && <div className="department-list">{departments.map(({name,filter,icon:Icon},i) => <button key={name} className="department-row" onClick={() => setDepartment(filter)}><span className="department-icon" style={{background:agentAppearance(AGENTS.find(a=>a.department===filter)!.index).suit}}><Icon size={27}/></span><span>{name}</span><ChevronRight size={19}/></button>)}</div>}
       {browsing && <div className="agent-list">{agents.map(a => <button key={a.index} className={`agent-row ${state.selectedNpcIndex === a.index ? 'selected' : ''}`} onClick={() => { state.endChat(); state.setSelectedNpc(a.isPlayer ? null : a.index); setTeam(false); }}>
-        <span className="agent-avatar" style={{ background: a.color }}>{a.role.split(' ').map(w => w[0]).slice(0,2).join('')}</span><span><strong>{a.isPlayer ? 'CEO · You' : a.role}</strong><small>{a.department}</small></span><ChevronRight size={15}/>
+        <span className="agent-avatar" style={{ background: agentAppearance(a.index).suit }}>{a.role.split(' ').map(w => w[0]).slice(0,2).join('')}</span><span><strong>{a.isPlayer ? 'CEO · You' : a.role}</strong><small>{phases[a.index] ? 'Coffee break · '+a.department : a.department}</small></span><ChevronRight size={15}/>
       </button>)}{!agents.length && <p className="empty-state">No agents match your search.</p>}</div>}
 
     </aside>
-    {selected && !state.isChatting && <section className="agent-detail" aria-label="Selected agent"><button className="close-detail" aria-label="Close agent details" onClick={() => state.setSelectedNpc(null)}><X size={18}/></button><small>{selected.department}</small><h2>{selected.role}</h2><p>{selected.mission}</p><div className="expertise">{selected.expertise.map(e => <span key={e}>{e}</span>)}</div><p className="personality">{selected.personality}</p><button className="primary-button" disabled={!ready} onClick={() => state.startChat(selected.index)}>Start conversation <ChevronRight size={16}/></button></section>}
-    <footer className="simulation-toolbar"><button onClick={onPause} disabled={!ready} aria-label={paused ? 'Resume simulation' : 'Pause simulation'}>{paused ? <Play size={17}/> : <Pause size={17}/>}<span>{unavailable ? '3D view unavailable' : paused ? 'Simulation paused' : 'Live simulation'}</span></button><div><span className="agent-count"><Users size={16}/>{state.instanceCount} agents</span><button aria-label="Reset view" onClick={onReset}><RotateCcw size={16}/><span>Reset view</span></button><button aria-label="Explore furnishings" onClick={() => setFurnishing(true)}><Armchair size={17}/></button><button aria-label="Simulation settings" onClick={state.toggleDebug}><SlidersHorizontal size={17}/></button></div></footer>
+    {selected && !state.isChatting && <section className="agent-detail" aria-label="Selected agent"><button className="close-detail" aria-label="Close agent details" onClick={() => state.setSelectedNpc(null)}><X size={18}/></button><small>{selected.department}</small><h2>{selected.role}</h2><p>{selected.mission}</p><p className="wardrobe-description">{agentAppearance(selected.index).description}</p><div className="expertise">{selected.expertise.map(e => <span key={e}>{e}</span>)}</div><p className="personality">{selected.personality}</p><button className="primary-button" disabled={!ready||!!phases[selected.index]||!!phases[0]} onClick={() => state.startChat(selected.index)}>Start conversation <ChevronRight size={16}/></button><button className="agent-tool-button" disabled={!ready} onClick={openTools}><Wrench size={16}/> Use a tool</button></section>}
+    <footer className="simulation-toolbar"><button onClick={onPause} disabled={!ready} aria-label={paused ? 'Resume simulation' : 'Pause simulation'}>{paused ? <Play size={17}/> : <Pause size={17}/>}<span>{unavailable ? '3D view unavailable' : paused ? 'Simulation paused' : 'Live simulation'}</span></button><div><span className="agent-count"><Users size={16}/>{state.instanceCount} agents</span><button aria-label="Reset view" onClick={onReset}><RotateCcw size={16}/><span>Reset view</span></button><button aria-label="Use agent tools" disabled={!ready} onClick={openTools}><Wrench size={17}/></button><button aria-label="Explore furnishings" onClick={() => setFurnishing(true)}><Armchair size={17}/></button><button aria-label="Simulation settings" onClick={state.toggleDebug}><SlidersHorizontal size={17}/></button></div></footer>
+    {toolAgent!==null&&<ToolRunner agentIndex={toolAgent} onClose={()=>setToolAgent(null)}/>}
     <ChatPanel/><Dashboard/><TrainingModule/><DebugPanel/><WorldEvents/><HelpModal isOpen={help} onClose={() => setHelp(false)}/>
     {furnishing && <Suspense fallback={<div className="viewer-loading" role="status">Opening furnishing studio…</div>}><FurnishingViewer onClose={() => setFurnishing(false)}/></Suspense>}
   </>;

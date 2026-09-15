@@ -1,3 +1,4 @@
+import { mcpActivity } from '../services/mcpActivity';
 import { WEBGL_AGENT_LIMIT, WEBGPU_AGENT_LIMIT } from './entities/populationLimits';
 
 import { Engine } from './core/Engine';
@@ -72,6 +73,10 @@ export class SceneManager {
     this.engine.renderer.setAnimationLoop(this.animate.bind(this));
 
     this.rebuildBehavior();
+    this.unsubs.push(mcpActivity.subscribe(event=>{
+      if(event.phase==='start' && useStore.getState().isChatting)useStore.getState().endChat();
+      this.behaviorManager?.toolEvent(event);
+    }));
 
     this.inputManager = new InputManager(
       this.engine.renderer.domElement,
@@ -101,6 +106,7 @@ export class SceneManager {
 
     useStore.setState({
       startChat: async (index: number) => {
+        if(this.behaviorManager?.coffee.queued(index)||this.behaviorManager?.coffee.queued(PLAYER_INDEX))return;
         this.chatGeneration++;
         const positions = this.characters.getCPUPositions();
         if (positions) {
@@ -236,6 +242,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
   }
 
   private rebuildBehavior() {
+    this.behaviorManager?.dispose();
     const stateBuffer = this.characters.getAgentStateBuffer();
     if (stateBuffer) {
       this.behaviorManager = new BehaviorManager(
@@ -251,6 +258,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
           }
         }
       );
+      mcpActivity.replay(event=>this.behaviorManager?.toolEvent(event));
     }
 
   }
@@ -282,7 +290,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional, 
     this.characters.syncFromGPU(this.engine.renderer).then((positions) => {
       if (!positions || this.isDisposed) return;
       // Run behavior logic with fresh GPU positions
-      this.behaviorManager?.update(positions);
+      this.behaviorManager?.update(positions,delta);
 
       // Update waypoint indicator
       const playerState = this.characters.getAgentState(PLAYER_INDEX);
@@ -419,6 +427,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
     this.unsubs.forEach(unsub => unsub());
     window.removeEventListener('resize', this.resizeHandler);
     this.inputManager?.dispose();
+    this.behaviorManager?.dispose();
     this.characters.dispose();
     this.stage.dispose();
     this.engine.dispose();
