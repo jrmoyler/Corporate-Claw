@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import { AGENTS } from '../src/data/agents';
 import { DEPARTMENT_LOOKS, agentAppearance, agentSurface } from '../src/data/agentAppearance';
-import { createSuitedAgent } from '../src/three/entities/createSuitedAgent';
+import { createSuitedAgent, CUP_ON_FOREARM, MOUTH_ON_HEAD } from '../src/three/entities/createSuitedAgent';
 import { CPUAgentRenderer } from '../src/three/entities/CPUAgentRenderer';
 import { AgentStateBuffer } from '../src/three/behavior/AgentStateBuffer';
 import { CoffeeBreaks } from '../src/three/behavior/CoffeeBreaks';
@@ -29,11 +29,12 @@ test('all six departments have coherent distinct clothes on the actual default r
 test('coffee cup is skinned to the hand, reaches the mouth and hides after sipping',()=>{
   const source=createSuitedAgent(),scene=new T.Scene(),crowd=new CPUAgentRenderer(scene,source.scene,source.animations,1,null);
   const states=new Float32Array([0,0,1,AgentBehavior.COFFEE]);
-  crowd.update(.6,new Float32Array([0,0,0,1]),new Float32Array([0,0,1,0]),states,new Float32Array(4));
+  // 1.9s falls inside the held sip; the anchors are the rig's own, not copies.
+  crowd.update(1.9,new Float32Array([0,0,0,1]),new Float32Array([0,0,1,0]),states,new Float32Array(4));
   const root=scene.children[0],cup=root.getObjectByName('CoffeeCup') as T.SkinnedMesh;
   assert.equal(cup.visible,true);scene.updateMatrixWorld(true);cup.skeleton.update();
-  const hand=new T.Vector3(0,-.57,.1).applyMatrix4(root.getObjectByName('RightForearm')!.matrixWorld);
-  const mouth=new T.Vector3(.1,.02,.23).applyMatrix4(root.getObjectByName('Head')!.matrixWorld);
+  const hand=new T.Vector3(...CUP_ON_FOREARM).applyMatrix4(root.getObjectByName('RightForearm')!.matrixWorld);
+  const mouth=new T.Vector3(...MOUTH_ON_HEAD).applyMatrix4(root.getObjectByName('Head')!.matrixWorld);
   assert.ok(hand.distanceTo(mouth)<.12,`cup distance ${hand.distanceTo(mouth)}`);
   for(let i=0;i<cup.geometry.attributes.position.count;i++)assert.ok(cup.getVertexPosition(i,new T.Vector3()).toArray().every(Number.isFinite));
   states[3]=AgentBehavior.FROZEN;crowd.update(.2,new Float32Array([0,0,0,1]),new Float32Array(4),states,new Float32Array(4));assert.equal(cup.visible,false);crowd.dispose();

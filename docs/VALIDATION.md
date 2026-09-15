@@ -54,3 +54,46 @@ package was unavailable and system installation failed under environment
 permissions. No security restrictions were changed. A software rasterization of
 actual geometry was used only for structural inspection. GPU lighting, shader
 execution, touch performance and full visual fidelity remain unverified.
+
+## Agent realism pass — current verification
+
+The procedural colleague rig was rebuilt against measured adult proportions
+rather than eyeballed offsets. Stature is 3.23 world units with the hip joint
+still pinned at 1.55, so every existing seat, desk and obstacle envelope is
+unchanged; within that, the head is 1/7.5 of stature, the shoulder sits at 0.82,
+the elbow at 0.62, the wrist at 0.48 and the knee at 0.26.
+
+Changed in this pass:
+
+- Shoulders were raised 0.06 and the deltoid reshaped, which removes the gap
+  that made the head read as sitting on a stalk above the jacket.
+- Shirt, lapels, tie, collar, waistcoat, lanyard, pocket square and scarf are
+  now curved panels wrapped onto the jacket shell with an explicit layer order,
+  instead of flat slabs floating in front of the chest. The jacket lathe no
+  longer caps over the throat, so the collar and neck are actually visible.
+- Head gained a tapered jaw, brow, nose, lids, lips, ears and a hair shell with
+  a high front hairline that drops at the temples and nape.
+- Hands, shoes, cuffs and sleeve buttons replaced spheres and slabs.
+- Idle, Walk, Talk, Sit and Coffee were re-authored: pelvis bob and list,
+  counter-rotating shoulders, knee flexion through swing, an unsynchronised
+  two-beat talk gesture, and a sip pose solved so the cup rim meets the mouth.
+- Seated agents drop 0.30 rather than 0.45 and their thighs slope, so hips meet
+  the ~1.10 seat cushions the office builds, shoes reach the floor and forearms
+  land on the 1.65 desk surface.
+- Suiting moved into a believable worsted range; ties are per-person rather than
+  departmental, so a team no longer matches.
+
+Geometry cost is 8,128 triangles per figure against 7,412 before, across 17
+material groups; both renderer paths consume the same source rig.
+
+Verified: `npm run lint`, 38 tests (five new anatomy checks covering
+proportions, single-body connectivity sampled across triangle surfaces rather
+than corners, clip content, seated contact with seat/floor/desk, and the sip
+anchor), and a production build. Structural inspection again used offline
+software rasterization of the actual geometry, including a seated figure
+against stand-ins at the office's real chair and desk heights.
+
+Not verified: GPU lighting, shadowing, tone mapping and shader execution on the
+rig, and its appearance at office camera distance on real hardware. This
+environment still exposes no WebGPU or WebGL context. No screenshot of the
+running application is claimed.

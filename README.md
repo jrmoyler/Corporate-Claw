@@ -16,6 +16,7 @@ The office uses Three.js WebGPURenderer (WebGPU with WebGL2 fallback). A working
 
 ## Explore
 
+- Colleagues are one procedural skinned rig at adult proportions (head an eighth of stature, shoulder at four fifths, hip just under half), tailored per department and varied per person in skin, hair, height, glasses and tie.
 - Search and filter the active team. Select an agent to inspect their mission and start a conversation.
 - Click the floor to move the CEO. Drag to orbit; scroll/pinch to zoom. Reset view returns to the office overview.
 - Pause/resume the simulation from the bottom toolbar.

@@ -4,6 +4,9 @@ import { AgentBehavior } from '../../types';
 type Obstacle = { position: { x: number; z: number }; radius: number };
 type Settings = { speed: number; worldSize: number; separationRadius: number; separationStrength: number };
 
+/** Drop from standing to seated: puts the hips on the ~1.10 seat cushions the office actually builds. */
+export const SEAT_DROP = -.30;
+
 const routeCaches = new WeakMap<Float32Array, Map<number, {x:number;z:number;limit:number;obstacles:Obstacle[];points:{x:number;z:number}[]}>>();
 
 /** WebGL movement uses the same vec4 position/state layout as the GPU path. */
@@ -30,7 +33,7 @@ export function stepCPUAgents(positions: Float32Array, velocities: Float32Array,
       positions.set([0, -100, 0, 1], k); continue;
     }
     if (state !== AgentBehavior.BOIDS && state !== AgentBehavior.GOTO) {
-      positions[k + 1] = state === AgentBehavior.SIT ? -.45 : state === AgentBehavior.WORKOUT ? .1 : 0;
+      positions[k + 1] = state === AgentBehavior.SIT ? SEAT_DROP : state === AgentBehavior.WORKOUT ? .1 : 0;
       if (Math.hypot(states[k], states[k + 2]) > .001) {
         velocities[k] = states[k]; velocities[k + 2] = states[k + 2];
       }
