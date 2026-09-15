@@ -48,7 +48,7 @@ export class SceneManager {
     if (this.isDisposed) return;
     // WebGL2 can render the office, but not this agent shader's arbitrary
     // storage-buffer/bone-matrix accesses. Use standard skinning on that backend.
-    const useGPU = this.engine.renderer.backend.isWebGPUBackend === true;
+    const useGPU = this.engine.useGPU;
     useStore.getState().setAgentLimit(useGPU ? WEBGPU_AGENT_LIMIT : WEBGL_AGENT_LIMIT);
     this.characters.setInstanceCount(useStore.getState().instanceCount);
     await this.characters.load(useGPU);
@@ -67,7 +67,7 @@ export class SceneManager {
     // Resolve the loading screen only after the first frame actually renders.
     this.stage.update();
     this.characters.update(0, this.engine.renderer);
-    await this.engine.renderer.renderAsync(this.stage.scene, this.stage.camera);
+    await this.engine.renderFirstFrame(this.stage.scene, this.stage.camera);
     if (this.isDisposed) return;
     this.engine.renderer.setAnimationLoop(this.animate.bind(this));
 
@@ -388,7 +388,7 @@ Keep your responses extremely brief (1-2 short sentences max) and professional. 
 
       useStore.getState().updatePerformance({
         fps,
-        drawCalls: info.render.drawCalls,
+        drawCalls: info.render.drawCalls ?? info.render.calls,
         triangles: info.render.triangles,
         geometries: info.memory.geometries,
         textures: info.memory.textures,
