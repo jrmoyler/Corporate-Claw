@@ -10,9 +10,9 @@ import { AgentBehavior } from '../src/types';
 
 test('new suited rig has finite skinned geometry and independent walking/seated clones',()=>{
  const source=createSuitedAgent();const scene=new T.Scene();const crowd=new CPUAgentRenderer(scene,source.scene,source.animations,2,null);
- crowd.update(.4,new Float32Array([0,0,0,1,3,-.45,0,1]),new Float32Array([0,0,1,0,0,0,1,0]),new Float32Array([0,0,0,AgentBehavior.BOIDS,0,0,0,AgentBehavior.SIT]),new Float32Array(8));
+ crowd.update(.4,new Float32Array([0,0,0,1,3,-.30,0,1]),new Float32Array([0,0,1,0,0,0,1,0]),new Float32Array([0,0,0,AgentBehavior.BOIDS,0,0,0,AgentBehavior.SIT]),new Float32Array(8));
  const legs=scene.children.map(root=>root.getObjectByName('LeftLeg') as T.Bone);
- assert.notEqual(legs[0],legs[1]);assert.ok(Math.abs(legs[1].rotation.x+Math.PI/2)<.01);assert.ok(Math.abs(legs[0].rotation.x)<.5);
+ assert.notEqual(legs[0],legs[1]);assert.ok(Math.abs(legs[1].rotation.x+1)<.01);assert.ok(Math.abs(legs[0].rotation.x)<.5);
  let vertices=0;scene.updateMatrixWorld(true);scene.traverse((o:any)=>{if(!o.isSkinnedMesh)return;o.skeleton.update();assert.ok(Array.from(o.skeleton.boneMatrices as Float32Array).every(Number.isFinite));assert.equal(o.material.opacity,1);assert.equal(o.material.transparent,false);for(let i=0;i<o.geometry.attributes.position.count;i++){const p=new T.Vector3();o.getVertexPosition(i,p);assert.ok(p.toArray().every(Number.isFinite));vertices++;}});
  assert.ok(vertices>1000);crowd.dispose();assert.equal(scene.children.length,0);
 });

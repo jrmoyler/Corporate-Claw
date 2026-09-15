@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stepCPUAgents } from '../src/three/behavior/cpuMovement';
+import { stepCPUAgents, SEAT_DROP } from '../src/three/behavior/cpuMovement';
 import { AgentBehavior } from '../src/types';
 import { verifyAssets } from '../scripts/verify-assets.mjs';
 
@@ -27,7 +27,7 @@ test('WebGL preserves held states, seating height, offline visibility and finite
   const s = new Float32Array([0,0,0,AgentBehavior.BOIDS, 0,0,1,AgentBehavior.SIT, 0,0,0,AgentBehavior.OFFLINE, 0,0,0,AgentBehavior.FROZEN]);
   stepCPUAgents(p,v,s,1/60,settings,[{position:{x:0,z:0},radius:2}]);
   assert.ok(Array.from(p).every(Number.isFinite)); assert.ok(p[0] > 0);
-  assert.equal(p[4],2); assert.ok(Math.abs(p[5]+.45)<.00001); assert.equal(p[9],-100); assert.equal(p[12],29);
+  assert.equal(p[4],2); assert.ok(Math.abs(p[5]-SEAT_DROP)<.00001); assert.equal(p[9],-100); assert.equal(p[12],29);
 });
 test('WebGL crowd stays inside office boundaries', () => {
   const p = new Float32Array([29,0,29,1]), v = new Float32Array([1,0,1,0]), s = new Float32Array(4);
