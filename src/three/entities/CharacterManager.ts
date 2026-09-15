@@ -1,6 +1,7 @@
 
 import * as THREE from 'three/webgpu';
 import { useStore } from '../../store/useStore';
+import { clampAgentCount, WEBGL_AGENT_LIMIT, WEBGPU_AGENT_LIMIT } from './populationLimits';
 import { createSuitedAgent } from './createSuitedAgent';
 import {
   Fn,
@@ -98,6 +99,7 @@ export class CharacterManager {
 
   public async load(useGPU = true) {
     this.cpuMode = !useGPU;
+    this.instanceCount = clampAgentCount(this.instanceCount, this.cpuMode ? WEBGL_AGENT_LIMIT : WEBGPU_AGENT_LIMIT);
 
     try {
       const gltf = createSuitedAgent();
@@ -171,6 +173,7 @@ export class CharacterManager {
   }
 
   public setInstanceCount(count: number) {
+    count = clampAgentCount(count, this.cpuMode ? WEBGL_AGENT_LIMIT : WEBGPU_AGENT_LIMIT);
     if (this.instanceCount === count) return;
     this.instanceCount = count;
     if (this.isLoaded) {

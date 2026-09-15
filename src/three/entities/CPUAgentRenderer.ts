@@ -1,14 +1,14 @@
 import * as THREE from 'three/webgpu';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { AgentBehavior } from '../../types';
-import { AGENTS } from '../../data/agents';
+import { clampAgentCount, WEBGL_AGENT_LIMIT } from './populationLimits';
 
 /** Standard skinned meshes avoid WebGPU storage-buffer shaders on WebGL2. */
 export class CPUAgentRenderer {
   private agents: { root: THREE.Object3D; mixer: THREE.AnimationMixer; actions: Record<string, THREE.AnimationAction>; current: string; faces: { map: THREE.Texture; offset: number }[] }[] = [];
 
   constructor(private scene: THREE.Scene, source: THREE.Object3D, clips: THREE.AnimationClip[], count: number, colors: string[] | null) {
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < clampAgentCount(count, WEBGL_AGENT_LIMIT); i++) {
       const root = clone(source);
       const faces: { map: THREE.Texture; offset: number }[] = [];
       root.traverse((object: any) => {

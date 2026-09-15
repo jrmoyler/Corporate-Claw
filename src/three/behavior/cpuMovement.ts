@@ -36,10 +36,14 @@ export function stepCPUAgents(positions: Float32Array, velocities: Float32Array,
       }
       continue;
     }
+    // Waypoints (including lifecycle exits) are not constrained by the boids inset.
+    const movementLimit = state === AgentBehavior.GOTO
+      ? Math.max(limit, Math.abs(states[k]), Math.abs(states[k + 2]))
+      : limit;
     if (state === AgentBehavior.GOTO) {
       let route=routes.get(i);
-      if(!route||route.x!==states[k]||route.z!==states[k+2]||route.limit!==limit||route.obstacles!==obstacles){
-        route={x:states[k],z:states[k+2],limit,obstacles,points:findOfficeRoute({x,z},{x:states[k],z:states[k+2]},obstacles,limit)};routes.set(i,route);
+      if(!route||route.x!==states[k]||route.z!==states[k+2]||route.limit!==movementLimit||route.obstacles!==obstacles){
+        route={x:states[k],z:states[k+2],limit:movementLimit,obstacles,points:findOfficeRoute({x,z},{x:states[k],z:states[k+2]},obstacles,movementLimit)};routes.set(i,route);
       }
       while(route.points.length>1&&Math.hypot(route.points[0].x-x,route.points[0].z-z)<.3)route.points.shift();
       const target=route.points[0];if(!target){velocities[k]=velocities[k+2]=0;continue;}
@@ -77,7 +81,7 @@ export function stepCPUAgents(positions: Float32Array, velocities: Float32Array,
       if (speed > .001) { vx = vx / speed * settings.speed; vz = vz / speed * settings.speed; }
       else { vx = 0; vz = settings.speed; }
     }
-    positions.set([Math.max(-limit, Math.min(limit, x + vx * frameScale)), 0, Math.max(-limit, Math.min(limit, z + vz * frameScale)), 1], k);
+    positions.set([Math.max(-movementLimit, Math.min(movementLimit, x + vx * frameScale)), 0, Math.max(-movementLimit, Math.min(movementLimit, z + vz * frameScale)), 1], k);
     velocities[k] = vx; velocities[k + 2] = vz;
   }
 }

@@ -1,4 +1,5 @@
 
+import { clampAgentCount, WEBGPU_AGENT_LIMIT } from '../three/entities/populationLimits';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CharacterState, AnimationName, PerformanceStats, BoidsParams, ActiveEncounter } from '../types';
@@ -10,6 +11,8 @@ export const useStore = create<CharacterState>()(
     aiResponse: "Hello! I'm your AI character. Type something to talk to me.",
     isDebugOpen: false,
     instanceCount: 100,
+    agentLimit: WEBGPU_AGENT_LIMIT,
+    setAgentLimit: (agentLimit) => set(state => ({ agentLimit, instanceCount: clampAgentCount(state.instanceCount, agentLimit) })),
     worldSize: 30,      // radius of Kaldera
 
     // Default Boids Parameters
@@ -73,7 +76,7 @@ export const useStore = create<CharacterState>()(
     setAIResponse: (aiResponse: string) => set({ aiResponse }),
     toggleDebug: () => set((state) => ({ isDebugOpen: !state.isDebugOpen })),
     toggleDashboard: () => set((state) => ({ isDashboardOpen: !state.isDashboardOpen })),
-    setInstanceCount: (count: number) => set({ instanceCount: Math.max(1, Math.min(2000, Math.round(count))) }),
+    setInstanceCount: (count: number) => set(state => ({ instanceCount: clampAgentCount(count, state.agentLimit) })),
     setWorldSize: (size: number) => set({ worldSize: size }),
 
     setBoidsParams: (params) => set((state) => ({
