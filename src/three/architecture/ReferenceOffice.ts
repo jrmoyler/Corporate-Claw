@@ -6,7 +6,7 @@ import { DESK_ISLANDS, LOUNGES, MEETING, CAFE, RECEPTION, PARTITIONS, DIVIDERS }
 /** The reference is an art-direction input; every furnishing is actual geometry. */
 export function createReferenceOffice() {
   const root = new T.Group(); root.name = 'Reference office';
-  const mat = (color: number, roughness=.65, metalness=0) => new T.MeshStandardNodeMaterial({color,roughness,metalness});
+  const mat = (color: number, roughness=.65, metalness=0) => new T.MeshStandardMaterial({color,roughness,metalness});
   const ivory=mat(0xeae4d7), black=mat(0x202421,.4,.35), oak=mat(0x98704b), brass=mat(0xa89058,.3,.7), stone=mat(0xe4dfd3,.35), soil=mat(0x292820);
   let seed=193;
   const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
@@ -59,7 +59,7 @@ export function createReferenceOffice() {
   for(const p of PARTITIONS){
     const group=new T.Group();group.name=p.glass?'Black framed glazing':'Ivory cutaway wall';root.add(group);
     if(!p.glass){box(p.x,p.h/2,p.z,p.w,p.h,p.d,ivory,group);box(p.x,.14,p.z,p.w+.08,.28,p.d+.08,stone,group);}
-    else {const glass=new T.MeshPhysicalNodeMaterial({color:0xcad4cd,transparent:true,opacity:.13,roughness:.12,metalness:.05,depthWrite:false});box(p.x,p.h/2,p.z,p.w,p.h,p.d,glass,group,0);const alongX=p.w>p.d,length=Math.max(p.w,p.d);for(let t=-length/2;t<=length/2+.01;t+=length/Math.ceil(length/3)){box(p.x+(alongX?t:0),p.h/2,p.z+(alongX?0:t),.09,p.h,.09,black,group,0);}for(const y of [.1,p.h])box(p.x,y,p.z,alongX?p.w:.1,.1,alongX?.1:p.d,black,group,0);}
+    else {const glass=new T.MeshPhysicalMaterial({color:0xcad4cd,transparent:true,opacity:.13,roughness:.12,metalness:.05,depthWrite:false});box(p.x,p.h/2,p.z,p.w,p.h,p.d,glass,group,0);const alongX=p.w>p.d,length=Math.max(p.w,p.d);for(let t=-length/2;t<=length/2+.01;t+=length/Math.ceil(length/3)){box(p.x+(alongX?t:0),p.h/2,p.z+(alongX?0:t),.09,p.h,.09,black,group,0);}for(const y of [.1,p.h])box(p.x,y,p.z,alongX?p.w:.1,.1,alongX?.1:p.d,black,group,0);}
   }
   function chair(x:number,z:number,rotation:number,color=0x183a32,office=false,parent:T.Object3D=root){const g=new T.Group();g.name=office?'Task chair':'Upholstered chair';g.position.set(x,0,z);g.rotation.y=rotation;parent.add(g);const cloth=mat(color,.96);box(0,.98,0,1.25,.25,1.25,cloth,g,.12);box(0,1.58,-.54,1.28,1.16,.23,cloth,g,.1);for(const s of [-1,1]){box(s*.64,1.3,0,.14,.16,.9,cloth,g);if(!office)for(const z of [-.45,.45])box(s*.5,.45,z,.08,.9,.08,black,g);}if(office){cyl(0,.5,0,.09,.9,black,g);for(let i=0;i<5;i++){const a=i*2*Math.PI/5;const leg=box(Math.sin(a)*.32,.15,Math.cos(a)*.32,.09,.1,.75,black,g);leg.rotation.y=a;cyl(Math.sin(a)*.65,.1,Math.cos(a)*.65,.1,.12,black,g);}}}
   function sofa(x:number,z:number,rotation:number,color:number){const g=new T.Group();g.name='Tailored three cushion sofa';g.position.set(x,0,z);g.rotation.y=rotation;root.add(g);const cloth=mat(color,.93);box(0,.56,0,7,.52,2.4,cloth,g,.15);box(0,1.5,-.95,7,1.65,.45,cloth,g,.16);for(let i=-1;i<=1;i++){box(i*2.02,.97,.05,1.95,.35,1.9,cloth,g,.13);box(i*2.02,1.63,-.65,1.95,1.25,.38,cloth,g,.16);}for(const s of [-1,1]){box(s*3.36,1.15,0,.4,1.3,2.4,cloth,g,.13);for(const zz of [-.8,.8])cyl(s*2.9,.22,zz,.07,.44,brass,g);}}
@@ -105,7 +105,7 @@ export function createReferenceOffice() {
   box(24,1,-9,7,2,2,black);box(24,2.05,-9,7.2,.13,2.2,stone);box(24,2.65,-9,1,1.15,.7,black);box(24,2.8,-8.62,.6,.3,.04,stone);cyl(24,2.23,-8.5,.12,.25,stone);
   for(const [x,z] of [[0,-24],[25,-25],[27,-10],[16,6],[26,26],[-28,25],[-14,-13],[-15,0],[1,4]])plant(x,z,1.15);
   // Warm sconces and reception table lamp.
-  for(const [x,z] of [[-27,-25.6],[13,1.6],[26.7,15]]){const bulb=new T.MeshStandardNodeMaterial({color:0xffedc7,emissive:0xffdc92,emissiveIntensity:2});mesh(new T.SphereGeometry(.24,12,8),bulb,x,3.5,z);const light=new T.PointLight(0xffdfab,7,7,2);light.position.set(x,3.5,z+.5);root.add(light);}
+  for(const [x,z] of [[-27,-25.6],[13,1.6],[26.7,15]]){const bulb=new T.MeshStandardMaterial({color:0xffedc7,emissive:0xffdc92,emissiveIntensity:2});mesh(new T.SphereGeometry(.24,12,8),bulb,x,3.5,z);const light=new T.PointLight(0xffdfab,7,7,2);light.position.set(x,3.5,z+.5);root.add(light);}
   cyl(21.8,2.7,9,.06,.6,brass);mesh(new T.ConeGeometry(.38,.48,24),mat(0xffe8bd),21.8,3.1,9);
   // Batch opaque static surfaces by material values; leaves and parquet are already instanced.
   root.updateMatrixWorld(true);

@@ -23,7 +23,7 @@ export class InputManager {
 
   constructor(
     private canvas: HTMLElement,
-    private camera: THREE.PerspectiveCamera,
+    private camera: THREE.Camera,
     private getPositions: () => Float32Array | null,
     private getCount: () => number,
     private onSelect: (index: number | null) => void,
